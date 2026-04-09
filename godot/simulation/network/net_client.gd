@@ -14,7 +14,7 @@ var _server_tick: int = 0
 
 # Client-side prediction state
 var _input_seq: int = 0
-var _pending_inputs: Array = []  # { seq, direction, predicted_position }
+var _pending_inputs: Array = []  # { seq, direction }
 var _local_player: PlayerEntity = null
 
 # Interpolation state: two most recent snapshots for remote entities
@@ -22,8 +22,12 @@ var _snapshot_prev: Snapshot = null
 var _snapshot_curr: Snapshot = null
 var _snapshot_time: float = 0.0  # Time since _snapshot_curr arrived
 
+# Max remote interpolation t — allows brief extrapolation past the latest snapshot
+# to cover network jitter, preventing the freeze-then-jump stutter.
+# 1.5 = up to 25ms of extrapolation at 20Hz tick rate.
+const MAX_REMOTE_INTERP: float = 1.5
+
 # Visual reconciliation
-const BLEND_THRESHOLD: float = 5.0   # pixels — blend if under this
 const SNAP_THRESHOLD: float = 50.0   # pixels — snap if over this
 const BLEND_SPEED: float = 10.0      # lerp rate per second
 var _visual_offset: Vector2 = Vector2.ZERO  # visual correction being blended out
@@ -33,12 +37,6 @@ var _input_timer: float = 0.0
 
 # Direction set by caller each frame (view/input layer)
 var input_direction: Vector2 = Vector2.ZERO
-
-# Local player predicted-position interpolation (smooth between 20Hz ticks).
-# Both positions come from move_and_collide(), so they respect collision geometry.
-var _prev_predicted_pos: Vector2 = Vector2.ZERO
-var _curr_predicted_pos: Vector2 = Vector2.ZERO
-var _prediction_time: float = 0.0
 
 
 func connect_to_server(address: String, port: int) -> Error:
@@ -64,16 +62,20 @@ func _process(delta: float):
 			else:
 				_handle_binary_message(packet)
 
-		# Send input at tick rate
+		# Frame-rate prediction: run physics every frame for instant response
+		if _local_player != null:
+			_local_player.apply_input(input_direction)
+			_local_player.move_delta(delta)
+
+		# Send input at tick rate (network bandwidth stays at 20Hz)
 		_input_timer += delta
 		var tick_interval = MessageTypes.TICK_INTERVAL_MS / 1000.0
 		while _input_timer >= tick_interval:
 			_input_timer -= tick_interval
 			_send_input()
 
-		# Advance interpolation timers
+		# Advance remote interpolation timer
 		_snapshot_time += delta
-		_prediction_time += delta
 
 	elif state == WebSocketPeer.STATE_CLOSED and _connected:
 		_connected = false
@@ -155,40 +157,25 @@ func _send_ack(tick: int):
 
 func set_local_player(player: PlayerEntity) -> void:
 	_local_player = player
-	_prev_predicted_pos = player.position
-	_curr_predicted_pos = player.position
 
 
 func _send_input():
 	if _local_player == null or _local_player_id == -1:
 		return
 
-	var direction = input_direction
-
 	_input_seq += 1
 
-	# Predict locally (runs move_and_collide — physics-aware)
-	_local_player.apply_input(direction)
-	_local_player.tick()
-
-	# Rotate predicted positions for interpolation.
-	# Both are from move_and_collide(), so interpolation respects walls.
-	_prev_predicted_pos = _curr_predicted_pos
-	_curr_predicted_pos = _local_player.position
-	_prediction_time = 0.0
-
-	# Store prediction for reconciliation
+	# Store for reconciliation (direction only — position is continuous now)
 	_pending_inputs.append({
 		"seq": _input_seq,
-		"direction": direction,
-		"predicted_position": _local_player.position,
+		"direction": input_direction,
 	})
 
 	# Send to server
 	var msg = {
 		"type": MessageTypes.Binary.PLAYER_INPUT,
 		"tick": _server_tick,
-		"direction": direction,
+		"direction": input_direction,
 		"input_seq": _input_seq,
 	}
 	_ws.send(NetMessage.encode(msg))
@@ -205,9 +192,7 @@ func _reconcile_local_player(snap: Snapshot):
 	var server_seq: int = server_data.get("last_input_seq", 0)
 
 	# Capture what the view was showing before reconciliation
-	var tick_interval = MessageTypes.TICK_INTERVAL_MS / 1000.0
-	var t = clampf(_prediction_time / tick_interval, 0.0, 1.0)
-	var visual_before = _prev_predicted_pos.lerp(_curr_predicted_pos, t) + _visual_offset
+	var visual_before: Vector2 = _local_player.position + _visual_offset
 
 	# Discard predictions the server has already processed
 	while _pending_inputs.size() > 0 and _pending_inputs[0]["seq"] <= server_seq:
@@ -216,28 +201,21 @@ func _reconcile_local_player(snap: Snapshot):
 	# Snap to server authoritative position
 	_local_player.position = server_pos
 
-	# Re-apply unacknowledged predictions, tracking last two positions for interpolation
-	var second_to_last_pos: Vector2 = server_pos
+	# Replay unacknowledged inputs at tick delta (matching server simulation)
 	for pending in _pending_inputs:
-		second_to_last_pos = _local_player.position
 		_local_player.apply_input(pending["direction"])
 		_local_player.tick()
 
-	# Update prediction interpolation state
-	_curr_predicted_pos = _local_player.position
-	_prev_predicted_pos = second_to_last_pos
-	_prediction_time = 0.0
-
-	# For visual continuity: the view will now show prev.lerp(curr, 0) + offset = prev + offset.
-	# We want: prev + new_offset = visual_before
-	var correction = visual_before - _prev_predicted_pos
-	var correction_dist = correction.length()
+	# Visual offset: smoothly blend from old visual position to new logical position
+	var correction: Vector2 = visual_before - _local_player.position
+	var correction_dist: float = correction.length()
 
 	if correction_dist < 0.01:
 		_visual_offset = Vector2.ZERO
 	elif correction_dist < SNAP_THRESHOLD:
 		_visual_offset = correction
 	else:
+		# Teleport — too far to blend
 		_visual_offset = Vector2.ZERO
 
 
@@ -261,19 +239,14 @@ func get_interpolated_position(entity_id: int) -> Variant:
 	var prev_pos: Vector2 = _snapshot_prev.entities[entity_id]["position"]
 
 	var tick_interval = MessageTypes.TICK_INTERVAL_MS / 1000.0
-	var t = clampf(_snapshot_time / tick_interval, 0.0, 1.0)
+	var t = clampf(_snapshot_time / tick_interval, 0.0, MAX_REMOTE_INTERP)
 	return prev_pos.lerp(curr_pos, t)
 
 
 func get_local_player_position() -> Variant:
 	if _local_player == null:
 		return null
-	# Interpolate between the last two predicted positions. Both came from
-	# move_and_collide(), so the interpolation respects collision geometry —
-	# no more pushing through walls between ticks.
-	var tick_interval = MessageTypes.TICK_INTERVAL_MS / 1000.0
-	var t = clampf(_prediction_time / tick_interval, 0.0, 1.0)
-	return _prev_predicted_pos.lerp(_curr_predicted_pos, t)
+	return _local_player.position
 
 
 func get_visual_offset() -> Vector2:
@@ -281,7 +254,10 @@ func get_visual_offset() -> Vector2:
 
 
 func blend_visual_offset(delta: float) -> void:
-	_visual_offset = _visual_offset.lerp(Vector2.ZERO, BLEND_SPEED * delta)
+	# Exponential decay — framerate-independent unlike lerp(offset, zero, speed * delta).
+	# At BLEND_SPEED=10, half-life is ~69ms regardless of whether the game runs at
+	# 60fps, 120fps, or 144fps.
+	_visual_offset *= exp(-BLEND_SPEED * delta)
 	if _visual_offset.length() < 0.1:
 		_visual_offset = Vector2.ZERO
 
