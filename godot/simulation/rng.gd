@@ -6,7 +6,7 @@ func seed(value: int) -> void:
     _rng.seed = value
 
 func get_seed() -> int:
-	return _rng.seed
+    return _rng.seed
 
 func next_float() -> float:
     return _rng.randf()
