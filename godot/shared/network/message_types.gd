@@ -19,6 +19,7 @@ enum EntityFlags {
     NONE = 0,
     MOVING = 1,       # Entity is currently moving
     REMOVED = 2,      # Entity was removed (delta only)
+    DODGING = 4,      # Entity is in the DODGING state (for view-side trail trigger)
 }
 
 # Binary layout sizes in bytes
