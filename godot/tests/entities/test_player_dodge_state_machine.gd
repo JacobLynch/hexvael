@@ -110,3 +110,55 @@ func test_dodge_respects_walls():
 	for i in range(10):
 		p.advance(_params.dodge_duration / 10.0)
 	assert_lt(p.position.x, 480.0, "Dodge must not phase through walls")
+
+
+func test_dodge_impulse_overrides_walking_velocity():
+	# Impulse semantics: dodge hard-sets velocity to dodge_speed immediately,
+	# regardless of prior walking velocity. Prevents midpoint integration from
+	# blending old velocity with new dodge velocity on the first tick.
+	var p = _make_player()
+	p.move_input = Vector2(1.0, 0.0)
+	p.velocity = Vector2(200.0, 0.0)  # simulate prior walking velocity
+	p.start_dodge()
+	# After start_dodge, velocity should be exactly dodge_speed in dodge direction
+	assert_almost_eq(p.velocity.x, _params.dodge_speed, 0.01,
+		"start_dodge must hard-set velocity.x to dodge_speed")
+	assert_almost_eq(p.velocity.y, 0.0, 0.01)
+
+
+func test_dodge_impulse_overrides_opposite_walking_velocity():
+	# Even when walking in the opposite direction, the dodge must instantly
+	# commit to the dodge direction — no blending.
+	var p = _make_player()
+	p.move_input = Vector2(1.0, 0.0)
+	p.velocity = Vector2(-200.0, 0.0)  # walking left
+	p.start_dodge()  # dodging right
+	assert_almost_eq(p.velocity.x, _params.dodge_speed, 0.01,
+		"Dodge velocity must instantly override opposite walking velocity")
+
+
+func test_dodge_first_tick_travels_full_distance():
+	# Regression guard for the midpoint-integration-blends-prior-velocity bug.
+	# A dodge starting from any prior velocity should travel the same distance
+	# on its first tick as a dodge from standstill.
+	var arena = preload("res://shared/world/arena.tscn").instantiate()
+	add_child_autofree(arena)
+
+	var p_rest = _make_player()
+	p_rest.position = Vector2(100.0, 160.0)
+	p_rest.velocity = Vector2.ZERO
+	p_rest.move_input = Vector2(1.0, 0.0)
+	p_rest.start_dodge()
+	p_rest.advance(0.05)
+	var dist_rest = p_rest.position.x - 100.0
+
+	var p_move = _make_player()
+	p_move.position = Vector2(100.0, 160.0)
+	p_move.velocity = Vector2(200.0, 0.0)
+	p_move.move_input = Vector2(1.0, 0.0)
+	p_move.start_dodge()
+	p_move.advance(0.05)
+	var dist_move = p_move.position.x - 100.0
+
+	assert_almost_eq(dist_move, dist_rest, 0.1,
+		"Dodge first-tick distance must match regardless of prior velocity")

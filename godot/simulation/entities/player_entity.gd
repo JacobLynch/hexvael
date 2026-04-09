@@ -52,6 +52,10 @@ func start_dodge() -> void:
 	dodge_direction = dir
 	dodge_time_remaining = params.dodge_duration
 	dodge_cooldown_remaining = params.dodge_cooldown
+	# Hard-set velocity — impulse semantics. The dodge instantly commits to its
+	# direction, bypassing prior walking velocity. Without this, midpoint integration
+	# in advance() would blend pre-dodge velocity with dodge velocity on the first tick.
+	velocity = dir * params.dodge_speed
 	EventBus.player_dodge_started.emit({
 		"entity_id": player_id,
 		"position": position,
