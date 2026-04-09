@@ -5,9 +5,9 @@ extends GutTest
 ## through walls and the server bounced them back.
 
 var PlayerEntityScene = preload("res://simulation/entities/player_entity.tscn")
-var ArenaWallsScene = preload("res://simulation/entities/arena_walls.tscn")
+var ArenaScene = preload("res://shared/world/arena.tscn")
 
-var _walls: StaticBody2D
+var _arena: Node2D
 var _player: PlayerEntity
 
 const TICK_S: float = MessageTypes.TICK_INTERVAL_MS / 1000.0
@@ -22,8 +22,8 @@ const TICK_S: float = MessageTypes.TICK_INTERVAL_MS / 1000.0
 
 
 func before_each():
-	_walls = ArenaWallsScene.instantiate()
-	add_child_autofree(_walls)
+	_arena = ArenaScene.instantiate()
+	add_child_autofree(_arena)
 	_player = PlayerEntityScene.instantiate()
 	add_child_autofree(_player)
 
