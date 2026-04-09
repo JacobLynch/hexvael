@@ -20,6 +20,8 @@
 
 ## Hard Rules — Follow In Every File
 
+Update the DEVLOG.md with the appropriate info every time you are about to make a PR.
+
 ### Simulation and View are strictly separate
 
 `/simulation` — pure logic, no rendering:
