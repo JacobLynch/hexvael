@@ -1,0 +1,13 @@
+# Godot
+godot/.godot/
+godot/android/
+godot/export/
+*.translation
+*.import
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea
