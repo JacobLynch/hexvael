@@ -20,7 +20,13 @@ func apply_input(direction: Vector2) -> void:
 
 
 func tick() -> void:
-	move_and_slide()
+	var delta: float = MessageTypes.TICK_INTERVAL_MS / 1000.0
+	var motion: Vector2 = velocity * delta
+	var collision = move_and_collide(motion)
+	if collision:
+		# Slide along the wall with remaining motion
+		var remainder = collision.get_remainder()
+		move_and_collide(remainder.slide(collision.get_normal()))
 
 
 func to_snapshot_data() -> Dictionary:
