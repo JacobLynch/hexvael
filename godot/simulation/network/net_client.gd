@@ -239,7 +239,7 @@ func blend_visual_offset(delta: float) -> void:
 		_visual_offset = Vector2.ZERO
 
 
-func is_connected() -> bool:
+func is_server_connected() -> bool:
 	return _connected
 
 
