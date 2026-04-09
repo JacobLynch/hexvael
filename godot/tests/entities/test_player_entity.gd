@@ -1,0 +1,64 @@
+extends GutTest
+
+var PlayerEntityScene = preload("res://simulation/entities/player_entity.tscn")
+
+
+func test_initial_state():
+	var player = PlayerEntityScene.instantiate()
+	add_child_autofree(player)
+	assert_eq(player.player_id, -1, "Default player_id should be -1")
+	assert_eq(player.velocity, Vector2.ZERO)
+
+
+func test_initialize_sets_id_and_position():
+	var player = PlayerEntityScene.instantiate()
+	add_child_autofree(player)
+	player.initialize(5, Vector2(100.0, 200.0))
+	assert_eq(player.player_id, 5)
+	assert_eq(player.position, Vector2(100.0, 200.0))
+
+
+func test_apply_input_sets_velocity():
+	var player = PlayerEntityScene.instantiate()
+	add_child_autofree(player)
+	player.initialize(1, Vector2.ZERO)
+	player.apply_input(Vector2(1.0, 0.0))
+	assert_eq(player.velocity, Vector2(player.SPEED, 0.0))
+
+
+func test_apply_input_normalizes_diagonal():
+	var player = PlayerEntityScene.instantiate()
+	add_child_autofree(player)
+	player.initialize(1, Vector2.ZERO)
+	player.apply_input(Vector2(1.0, 1.0))
+	var expected_speed = player.SPEED
+	# Diagonal should be normalized, so magnitude equals SPEED
+	assert_almost_eq(player.velocity.length(), expected_speed, 0.01)
+
+
+func test_apply_zero_input_stops():
+	var player = PlayerEntityScene.instantiate()
+	add_child_autofree(player)
+	player.initialize(1, Vector2.ZERO)
+	player.apply_input(Vector2(1.0, 0.0))
+	player.apply_input(Vector2.ZERO)
+	assert_eq(player.velocity, Vector2.ZERO)
+
+
+func test_to_snapshot_data():
+	var player = PlayerEntityScene.instantiate()
+	add_child_autofree(player)
+	player.initialize(3, Vector2(50.0, 75.0))
+	player.apply_input(Vector2(1.0, 0.0))
+	var data = player.to_snapshot_data()
+	assert_eq(data["entity_id"], 3)
+	assert_eq(data["position"], Vector2(50.0, 75.0))
+	assert_eq(data["flags"], MessageTypes.EntityFlags.MOVING)
+
+
+func test_to_snapshot_data_not_moving():
+	var player = PlayerEntityScene.instantiate()
+	add_child_autofree(player)
+	player.initialize(3, Vector2(50.0, 75.0))
+	var data = player.to_snapshot_data()
+	assert_eq(data["flags"], MessageTypes.EntityFlags.NONE)
