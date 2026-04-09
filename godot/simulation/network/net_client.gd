@@ -30,6 +30,7 @@ const MAX_REMOTE_INTERP: float = 1.5
 # Visual reconciliation
 const SNAP_THRESHOLD: float = 50.0   # pixels — snap if over this
 const BLEND_SPEED: float = 10.0      # lerp rate per second
+const MAX_PENDING_INPUTS: int = 60   # 3 seconds at tick rate
 var _visual_offset: Vector2 = Vector2.ZERO  # visual correction being blended out
 
 # Input sending timer (match server tick rate)
@@ -170,6 +171,10 @@ func _send_input():
 		"seq": _input_seq,
 		"direction": input_direction,
 	})
+
+	# Cap pending inputs to prevent unbounded growth during network disruption
+	if _pending_inputs.size() > MAX_PENDING_INPUTS:
+		_pending_inputs = _pending_inputs.slice(-MAX_PENDING_INPUTS)
 
 	# Send to server
 	var msg = {

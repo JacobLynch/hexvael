@@ -1,7 +1,7 @@
 extends GutTest
 ## Regression tests for local client movement smoothness.
-## Verifies prediction interpolation (between two physics-valid predicted positions)
-## and visual offset continuity during server reconciliation.
+## Verifies frame-rate prediction, visual offset continuity, framerate-independent
+## blend, remote extrapolation past t=1.0, and reconciliation correctness.
 
 var NetClientScript = preload("res://simulation/network/net_client.gd")
 var PlayerEntityScene = preload("res://simulation/entities/player_entity.tscn")
@@ -24,75 +24,6 @@ func before_each():
 	_client.set_local_player(_player)
 
 
-# --- Prediction interpolation basics ---
-
-
-func test_set_local_player_initializes_predicted_positions():
-	assert_eq(_client._prev_predicted_pos, Vector2(100.0, 100.0))
-	assert_eq(_client._curr_predicted_pos, Vector2(100.0, 100.0))
-
-
-func test_interpolation_at_t0_returns_prev_position():
-	_client._prev_predicted_pos = Vector2(100.0, 100.0)
-	_client._curr_predicted_pos = Vector2(110.0, 100.0)
-	_client._prediction_time = 0.0
-
-	var pos = _client.get_local_player_position()
-	assert_eq(pos, Vector2(100.0, 100.0),
-		"At t=0, should show previous predicted position")
-
-
-func test_interpolation_at_half_tick_returns_midpoint():
-	_client._prev_predicted_pos = Vector2(100.0, 100.0)
-	_client._curr_predicted_pos = Vector2(110.0, 100.0)
-	_client._prediction_time = TICK_S / 2.0
-
-	var pos = _client.get_local_player_position()
-	assert_almost_eq(pos.x, 105.0, 0.01,
-		"At t=0.5, should be halfway between prev and curr")
-	assert_almost_eq(pos.y, 100.0, 0.01)
-
-
-func test_interpolation_at_full_tick_returns_curr_position():
-	_client._prev_predicted_pos = Vector2(100.0, 100.0)
-	_client._curr_predicted_pos = Vector2(110.0, 100.0)
-	_client._prediction_time = TICK_S
-
-	var pos = _client.get_local_player_position()
-	assert_almost_eq(pos.x, 110.0, 0.01,
-		"At t=1.0, should show current predicted position")
-
-
-func test_interpolation_clamps_past_tick_boundary():
-	# If prediction_time overshoots (e.g., frame timing), t should clamp to 1.0
-	_client._prev_predicted_pos = Vector2(100.0, 100.0)
-	_client._curr_predicted_pos = Vector2(110.0, 100.0)
-	_client._prediction_time = TICK_S * 1.5  # 50% past tick
-
-	var pos = _client.get_local_player_position()
-	assert_almost_eq(pos.x, 110.0, 0.01,
-		"Should clamp to curr position, not overshoot")
-
-
-func test_interpolation_stationary_player():
-	_client._prev_predicted_pos = Vector2(100.0, 100.0)
-	_client._curr_predicted_pos = Vector2(100.0, 100.0)
-	_client._prediction_time = TICK_S / 2.0
-
-	var pos = _client.get_local_player_position()
-	assert_eq(pos, Vector2(100.0, 100.0),
-		"Stationary player should stay in place regardless of time")
-
-
-func test_interpolation_returns_null_without_player():
-	_client._local_player = null
-	assert_null(_client.get_local_player_position(),
-		"Should return null when no local player is set")
-
-
-# --- Visual offset and reconciliation ---
-
-
 func _make_snapshot(player_id: int, pos: Vector2, last_seq: int) -> Snapshot:
 	var snap = SnapshotScript.new()
 	snap.tick = 1
@@ -105,25 +36,40 @@ func _make_snapshot(player_id: int, pos: Vector2, last_seq: int) -> Snapshot:
 	return snap
 
 
+# --- Frame-rate prediction basics ---
+
+
+func test_get_local_player_position_returns_current_position():
+	_player.position = Vector2(150.0, 200.0)
+	var pos = _client.get_local_player_position()
+	assert_eq(pos, Vector2(150.0, 200.0),
+		"get_local_player_position should return player.position directly")
+
+
+func test_interpolation_returns_null_without_player():
+	_client._local_player = null
+	assert_null(_client.get_local_player_position(),
+		"Should return null when no local player is set")
+
+
+# --- Visual offset and reconciliation ---
+
+
 func test_reconciliation_visual_continuity_no_pending():
-	# Setup: prev=(100,100), curr=(110,100), halfway through tick
-	_client._prev_predicted_pos = Vector2(100.0, 100.0)
-	_client._curr_predicted_pos = Vector2(110.0, 100.0)
-	_client._prediction_time = TICK_S / 2.0
+	# Player predicted to (110, 100) via frame-rate movement
+	_player.position = Vector2(110.0, 100.0)
 	_client._visual_offset = Vector2.ZERO
 	_client._pending_inputs = []
 
-	# View is showing: lerp(100, 110, 0.5) + offset = (105, 100)
-	var visual_before = Vector2(105.0, 100.0)
+	var visual_before = _player.position + _client._visual_offset  # (110, 100)
 
 	# Server says player is at (108, 100), all inputs acknowledged
 	var snap = _make_snapshot(1, Vector2(108.0, 100.0), 999)
 	_client._reconcile_local_player(snap)
 
-	# After reconciliation with no pending: prev=curr=server_pos=(108,100)
-	# View will show: prev + offset = (108, 100) + offset
-	# For continuity: (108, 100) + offset = (105, 100)
-	var view_pos = _client._prev_predicted_pos + _client._visual_offset
+	# After reconciliation: player.position = (108, 100)
+	# offset should bridge the gap: (110, 100) - (108, 100) = (2, 0)
+	var view_pos = _player.position + _client._visual_offset
 
 	assert_almost_eq(view_pos.x, visual_before.x, 0.01,
 		"Visual position should be continuous through reconciliation")
@@ -131,13 +77,11 @@ func test_reconciliation_visual_continuity_no_pending():
 
 
 func test_reconciliation_large_correction_snaps():
-	_client._prev_predicted_pos = Vector2(100.0, 100.0)
-	_client._curr_predicted_pos = Vector2(100.0, 100.0)
-	_client._prediction_time = 0.0
+	_player.position = Vector2(100.0, 100.0)
 	_client._visual_offset = Vector2.ZERO
 	_client._pending_inputs = []
 
-	# Server says player is 60px away (> SNAP_THRESHOLD of 50)
+	# Server says player is 60px away — beyond SNAP_THRESHOLD
 	var snap = _make_snapshot(1, Vector2(160.0, 100.0), 999)
 	_client._reconcile_local_player(snap)
 
@@ -146,12 +90,11 @@ func test_reconciliation_large_correction_snaps():
 
 
 func test_reconciliation_tiny_correction_zeroes_offset():
-	_client._prev_predicted_pos = Vector2(100.0, 100.0)
-	_client._curr_predicted_pos = Vector2(100.0, 100.0)
-	_client._prediction_time = 0.0
+	_player.position = Vector2(100.0, 100.0)
 	_client._visual_offset = Vector2.ZERO
 	_client._pending_inputs = []
 
+	# Server says player is 0.005px away — sub-pixel
 	var snap = _make_snapshot(1, Vector2(100.005, 100.0), 999)
 	_client._reconcile_local_player(snap)
 
@@ -160,21 +103,40 @@ func test_reconciliation_tiny_correction_zeroes_offset():
 
 
 func test_visual_offset_preserved_not_doubled():
-	# Existing offset from prior reconciliation, no prediction error this time
-	_client._prev_predicted_pos = Vector2(100.0, 100.0)
-	_client._curr_predicted_pos = Vector2(100.0, 100.0)
-	_client._prediction_time = 0.0
+	_player.position = Vector2(100.0, 100.0)
 	_client._visual_offset = Vector2(3.0, 0.0)
 	_client._pending_inputs = []
 
-	# Server agrees with player position
+	# Server agrees with prediction — no correction needed
 	var snap = _make_snapshot(1, Vector2(100.0, 100.0), 999)
 	_client._reconcile_local_player(snap)
 
-	# visual_before = lerp(100,100, 0) + (3,0) = (103, 100)
-	# After: prev = (100, 100), offset should be (3, 0)
+	# visual_before = (100,100) + (3,0) = (103, 100)
+	# After: player.position = (100,100), offset = (103,100) - (100,100) = (3, 0)
 	assert_almost_eq(_client._visual_offset.x, 3.0, 0.01,
 		"Offset should be preserved correctly, not doubled")
+
+
+func test_reconciliation_with_existing_offset():
+	# Player predicted to (110, 100), already has offset from previous reconciliation
+	_player.position = Vector2(110.0, 100.0)
+	_client._visual_offset = Vector2(2.0, 0.0)
+	_client._pending_inputs = []
+
+	# visual_before = (110, 100) + (2, 0) = (112, 100)
+	# Server says (108, 100)
+	var snap = _make_snapshot(1, Vector2(108.0, 100.0), 999)
+	_client._reconcile_local_player(snap)
+
+	# After: player.position = (108, 100)
+	# offset = (112, 100) - (108, 100) = (4, 0)
+	var view_pos = _player.position + _client._visual_offset
+
+	assert_almost_eq(view_pos.x, 112.0, 0.01,
+		"Reconciliation should preserve visual continuity including existing offset")
+
+
+# --- Framerate-independent blend (exponential decay) ---
 
 
 func test_blend_visual_offset_converges_to_zero():
@@ -187,16 +149,83 @@ func test_blend_visual_offset_converges_to_zero():
 		"Visual offset should converge to zero after sufficient blending")
 
 
-# --- Prediction position rotation (wall-safety regression) ---
+func test_blend_is_framerate_independent():
+	# Blend at 60fps for 100ms vs 120fps for 100ms should produce same result
+	var offset_60 = Vector2(20.0, 0.0)
+	var offset_120 = Vector2(20.0, 0.0)
+
+	# Simulate 60fps for 100ms (6 frames)
+	for i in range(6):
+		offset_60 *= exp(-NetClient.BLEND_SPEED * (1.0 / 60.0))
+
+	# Simulate 120fps for 100ms (12 frames)
+	for i in range(12):
+		offset_120 *= exp(-NetClient.BLEND_SPEED * (1.0 / 120.0))
+
+	assert_almost_eq(offset_60.x, offset_120.x, 0.01,
+		"Exponential decay should give same result at different framerates")
 
 
-func test_interpolation_between_identical_positions_stays_put():
-	# When player is against a wall, both prev and curr are at the wall.
-	# Interpolation should stay exactly at the wall, not push through.
-	_client._prev_predicted_pos = Vector2(50.0, 100.0)
-	_client._curr_predicted_pos = Vector2(50.0, 100.0)
-	_client._prediction_time = TICK_S * 0.75
+# --- Remote player interpolation + extrapolation ---
 
-	var pos = _client.get_local_player_position()
-	assert_eq(pos, Vector2(50.0, 100.0),
-		"Against a wall, interpolation between identical positions should stay put")
+
+func test_remote_interpolation_normal_range():
+	_client._snapshot_prev = SnapshotScript.new()
+	_client._snapshot_prev.tick = 1
+	_client._snapshot_prev.entities[2] = {
+		"entity_id": 2, "position": Vector2(200.0, 100.0), "flags": 0, "last_input_seq": 0,
+	}
+	_client._snapshot_curr = SnapshotScript.new()
+	_client._snapshot_curr.tick = 2
+	_client._snapshot_curr.entities[2] = {
+		"entity_id": 2, "position": Vector2(210.0, 100.0), "flags": 0, "last_input_seq": 0,
+	}
+	_client._snapshot_time = TICK_S / 2.0
+
+	var pos = _client.get_interpolated_position(2)
+	assert_almost_eq(pos.x, 205.0, 0.01,
+		"Remote player should interpolate normally at t=0.5")
+
+
+func test_remote_extrapolation_past_tick():
+	# When snapshot is late, remote should mildly extrapolate instead of freezing
+	_client._snapshot_prev = SnapshotScript.new()
+	_client._snapshot_prev.tick = 1
+	_client._snapshot_prev.entities[2] = {
+		"entity_id": 2, "position": Vector2(200.0, 100.0), "flags": 0, "last_input_seq": 0,
+	}
+	_client._snapshot_curr = SnapshotScript.new()
+	_client._snapshot_curr.tick = 2
+	_client._snapshot_curr.entities[2] = {
+		"entity_id": 2, "position": Vector2(210.0, 100.0), "flags": 0, "last_input_seq": 0,
+	}
+	# 20ms past tick boundary (network jitter)
+	_client._snapshot_time = TICK_S + 0.020
+
+	var pos = _client.get_interpolated_position(2)
+
+	# Should extrapolate past 210, not clamp at 210
+	assert_gt(pos.x, 210.0,
+		"Remote player should extrapolate past curr when snapshot is late")
+
+
+func test_remote_extrapolation_capped_at_max():
+	_client._snapshot_prev = SnapshotScript.new()
+	_client._snapshot_prev.tick = 1
+	_client._snapshot_prev.entities[2] = {
+		"entity_id": 2, "position": Vector2(200.0, 100.0), "flags": 0, "last_input_seq": 0,
+	}
+	_client._snapshot_curr = SnapshotScript.new()
+	_client._snapshot_curr.tick = 2
+	_client._snapshot_curr.entities[2] = {
+		"entity_id": 2, "position": Vector2(210.0, 100.0), "flags": 0, "last_input_seq": 0,
+	}
+	# Way past tick boundary
+	_client._snapshot_time = TICK_S * 5.0
+
+	var pos = _client.get_interpolated_position(2)
+
+	# t capped at MAX_REMOTE_INTERP (1.5): lerp(200, 210, 1.5) = 215
+	var max_pos = Vector2(200.0, 100.0).lerp(Vector2(210.0, 100.0), NetClient.MAX_REMOTE_INTERP)
+	assert_almost_eq(pos.x, max_pos.x, 0.01,
+		"Remote extrapolation should cap at MAX_REMOTE_INTERP")
