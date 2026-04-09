@@ -14,7 +14,7 @@ var _server_tick: int = 0
 
 # Client-side prediction state
 var _input_seq: int = 0
-var _pending_inputs: Array = []  # { seq, direction }
+var _pending_inputs: Array = []  # { seq, move_direction, aim_direction }
 var _local_player: PlayerEntity = null
 
 # Interpolation state: two most recent snapshots for remote entities

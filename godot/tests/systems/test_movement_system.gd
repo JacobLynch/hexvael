@@ -64,3 +64,15 @@ func test_updates_last_processed_seq():
 	]
 	_system.process_inputs_for_player(1, inputs)
 	assert_eq(_player.last_processed_input_seq, 7)
+
+
+func test_apply_input_normalizes_aim_direction():
+	var inputs = [
+		{"input_seq": 1, "move_direction": Vector2.ZERO, "aim_direction": Vector2(3.0, 4.0), "tick": 10},
+	]
+	_system.process_inputs_for_player(1, inputs)
+	# Incoming aim was (3,4) which has length 5; expect it normalized to (0.6, 0.8)
+	assert_almost_eq(_player.aim_direction.length(), 1.0, 0.001,
+		"aim_direction should be normalized to unit length at ingest")
+	assert_almost_eq(_player.aim_direction.x, 0.6, 0.001)
+	assert_almost_eq(_player.aim_direction.y, 0.8, 0.001)

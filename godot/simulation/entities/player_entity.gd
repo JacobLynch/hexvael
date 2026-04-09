@@ -20,7 +20,12 @@ func initialize(id: int, spawn_position: Vector2) -> void:
 # Takes a Dictionary with keys: move_direction, aim_direction (optional), input_seq (optional).
 func apply_input(input: Dictionary) -> void:
 	move_input = input.get("move_direction", Vector2.ZERO)
-	aim_direction = input.get("aim_direction", aim_direction)  # keep old if missing
+	# aim_direction is always stored as a unit vector — normalize at ingest so every
+	# downstream consumer (facing indicator, dodge fallback) sees a valid unit vector.
+	# If the incoming aim is zero-length (e.g., no data yet), preserve the existing value.
+	var incoming_aim: Vector2 = input.get("aim_direction", aim_direction)
+	if incoming_aim.length_squared() > 0.001:
+		aim_direction = incoming_aim.normalized()
 	if input.has("input_seq") and input["input_seq"] > last_processed_input_seq:
 		last_processed_input_seq = input["input_seq"]
 
