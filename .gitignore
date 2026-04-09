@@ -11,3 +11,6 @@ Thumbs.db
 
 # IDE
 .idea
+
+# Worktrees
+.worktrees/
