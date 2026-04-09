@@ -29,6 +29,14 @@ func tick() -> void:
 		move_and_collide(remainder.slide(collision.get_normal()))
 
 
+func move_delta(delta: float) -> void:
+	var motion: Vector2 = velocity * delta
+	var collision = move_and_collide(motion)
+	if collision:
+		var remainder = collision.get_remainder()
+		move_and_collide(remainder.slide(collision.get_normal()))
+
+
 func to_snapshot_data() -> Dictionary:
 	var flags = MessageTypes.EntityFlags.NONE
 	if velocity.length_squared() > 0.0:

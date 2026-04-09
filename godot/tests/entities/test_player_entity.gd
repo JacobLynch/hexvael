@@ -74,3 +74,15 @@ func test_to_snapshot_data_tracks_input_seq():
 	player.last_processed_input_seq = 42
 	var data = player.to_snapshot_data()
 	assert_eq(data["last_input_seq"], 42)
+
+
+func test_move_delta_moves_by_frame_delta():
+	var player = PlayerEntityScene.instantiate()
+	add_child_autofree(player)
+	player.initialize(1, Vector2(100.0, 100.0))
+	player.apply_input(Vector2(1.0, 0.0))
+	player.move_delta(1.0 / 60.0)
+	# At 200 speed, 1/60s frame = ~3.33 pixels
+	var expected_x = 100.0 + (PlayerEntity.SPEED / 60.0)
+	assert_almost_eq(player.position.x, expected_x, 0.5)
+	assert_almost_eq(player.position.y, 100.0, 0.1)
