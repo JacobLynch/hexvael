@@ -19,6 +19,8 @@ var _player_entities: Dictionary = {}  # player_id -> PlayerEntity
 
 # Snapshot baselines: player_id -> Snapshot (last ACK'd)
 var _baselines: Dictionary = {}
+# Sent snapshots awaiting ACK: player_id -> { tick -> Snapshot }
+var _sent_snapshots: Dictionary = {}
 
 var _tick: int = 0
 var _tick_timer: float = 0.0
@@ -180,6 +182,7 @@ func _on_peer_disconnected(peer_id: int):
 
 	_input_buffer.remove_player(player_id)
 	_baselines.erase(player_id)
+	_sent_snapshots.erase(player_id)
 	_player_to_peer.erase(player_id)
 	_peer_to_player.erase(peer_id)
 	_peers.erase(peer_id)
@@ -209,9 +212,33 @@ func _handle_binary_message(peer_id: int, bytes: PackedByteArray):
 
 	match msg["type"]:
 		MessageTypes.Binary.PLAYER_INPUT:
+			var dir: Vector2 = msg["direction"]
+			if not (is_finite(dir.x) and is_finite(dir.y)):
+				return  # Reject non-finite input
+			if dir.length_squared() > 2.0:  # Allow slightly over 1.0 for float imprecision
+				return  # Reject absurd values
 			_input_buffer.add_input(player_id, msg)
 		MessageTypes.Binary.SNAPSHOT_ACK:
-			pass  # Baseline updated at send time in _server_tick
+			_handle_snapshot_ack(player_id, msg["tick"])
+
+
+func _handle_snapshot_ack(player_id: int, ack_tick: int) -> void:
+	if not _sent_snapshots.has(player_id):
+		return
+	var player_sent = _sent_snapshots[player_id]
+	if not player_sent.has(ack_tick):
+		return  # ACK references unknown tick, ignore
+
+	# Advance baseline to the ACK'd snapshot
+	_baselines[player_id] = player_sent[ack_tick]
+
+	# Prune all sent snapshots at or before the ACK'd tick
+	var ticks_to_erase: Array = []
+	for t in player_sent:
+		if t <= ack_tick:
+			ticks_to_erase.append(t)
+	for t in ticks_to_erase:
+		player_sent.erase(t)
 
 
 func _server_tick():
@@ -234,6 +261,11 @@ func _server_tick():
 		if ws == null or ws.get_ready_state() != WebSocketPeer.STATE_OPEN:
 			continue
 
+		if not _sent_snapshots.has(player_id):
+			_sent_snapshots[player_id] = {}
+
+		var snap_copy = current_snap.duplicate_snapshot()
+
 		if not _baselines.has(player_id):
 			# No baseline -- send full snapshot
 			var full_msg = {
@@ -242,10 +274,11 @@ func _server_tick():
 				"entities": current_snap.to_entity_array(),
 			}
 			ws.send(NetMessage.encode(full_msg))
-			_baselines[player_id] = current_snap.duplicate_snapshot()
+			# Store sent snapshot; baseline advances on ACK
+			_sent_snapshots[player_id][_tick] = snap_copy
 		else:
 			var baseline = _baselines[player_id]
-			# Check ACK timeout
+			# Check ACK timeout -- fall back to full snapshot
 			if _tick - baseline.tick > MessageTypes.ACK_TIMEOUT_TICKS:
 				var full_msg = {
 					"type": MessageTypes.Binary.FULL_SNAPSHOT,
@@ -253,7 +286,6 @@ func _server_tick():
 					"entities": current_snap.to_entity_array(),
 				}
 				ws.send(NetMessage.encode(full_msg))
-				_baselines[player_id] = current_snap.duplicate_snapshot()
 			else:
 				var delta = Snapshot.diff(baseline, current_snap)
 				if delta.size() > 0:
@@ -263,8 +295,8 @@ func _server_tick():
 						"entities": delta,
 					}
 					ws.send(NetMessage.encode(delta_msg))
-				# Update baseline to current for next delta
-				_baselines[player_id] = current_snap.duplicate_snapshot()
+			# Store sent snapshot; baseline advances on ACK
+			_sent_snapshots[player_id][_tick] = snap_copy
 
 
 func _build_current_snapshot() -> Snapshot:

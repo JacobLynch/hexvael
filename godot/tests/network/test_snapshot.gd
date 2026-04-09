@@ -3,8 +3,8 @@ extends GutTest
 var Snapshot = preload("res://simulation/network/snapshot.gd")
 
 
-func _make_entity(id: int, x: float, y: float, flags: int = 0) -> Dictionary:
-	return {"entity_id": id, "position": Vector2(x, y), "flags": flags}
+func _make_entity(id: int, x: float, y: float, flags: int = 0, last_input_seq: int = 0) -> Dictionary:
+	return {"entity_id": id, "position": Vector2(x, y), "flags": flags, "last_input_seq": last_input_seq}
 
 
 func test_capture_entities():
@@ -116,7 +116,7 @@ func test_apply_delta_removes_entity():
 	snap.entities = {
 		1: _make_entity(1, 100.0, 200.0),
 	}
-	var delta_entities = [{"entity_id": 1, "position": Vector2.ZERO, "flags": MessageTypes.EntityFlags.REMOVED}]
+	var delta_entities = [{"entity_id": 1, "position": Vector2.ZERO, "flags": MessageTypes.EntityFlags.REMOVED, "last_input_seq": 0}]
 	snap.apply_delta(11, delta_entities)
 	assert_false(snap.entities.has(1))
 

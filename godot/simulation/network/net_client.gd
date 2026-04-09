@@ -31,6 +31,9 @@ var _visual_offset: Vector2 = Vector2.ZERO  # visual correction being blended ou
 # Input sending timer (match server tick rate)
 var _input_timer: float = 0.0
 
+# Direction set by caller each frame (view/input layer)
+var input_direction: Vector2 = Vector2.ZERO
+
 
 func connect_to_server(address: String, port: int) -> Error:
 	var url = "ws://%s:%d" % [address, port]
@@ -151,7 +154,7 @@ func _send_input():
 	if _local_player == null or _local_player_id == -1:
 		return
 
-	var direction = Input.get_vector("move_left", "move_right", "move_up", "move_down")
+	var direction = input_direction
 
 	_input_seq += 1
 
@@ -184,24 +187,32 @@ func _reconcile_local_player(snap: Snapshot):
 
 	var server_data = snap.entities[_local_player_id]
 	var server_pos: Vector2 = server_data["position"]
+	var server_seq: int = server_data.get("last_input_seq", 0)
 
-	# For now, prune all predictions — server snapshot is authoritative
-	# In a more advanced version, server sends last_processed_seq per player
-	_pending_inputs.clear()
+	# Remember where we were visually before reconciliation
+	var old_position = _local_player.position
 
-	# Calculate correction
-	var correction = server_pos - _local_player.position
-	var correction_dist = correction.length()
+	# Discard predictions the server has already processed
+	while _pending_inputs.size() > 0 and _pending_inputs[0]["seq"] <= server_seq:
+		_pending_inputs.pop_front()
+
+	# Snap to server authoritative position
+	_local_player.position = server_pos
+
+	# Re-apply unacknowledged predictions on top of server state
+	for pending in _pending_inputs:
+		_local_player.apply_input(pending["direction"])
+		_local_player.tick()
+
+	# Calculate visual correction (smooth from where we were to where we are now)
+	var new_position = _local_player.position
+	var correction_dist = old_position.distance_to(new_position)
 
 	if correction_dist < 0.01:
 		_visual_offset = Vector2.ZERO
 	elif correction_dist < SNAP_THRESHOLD:
-		# Blend: snap logical position, accumulate visual offset to blend out
-		_visual_offset += _local_player.position - server_pos
-		_local_player.position = server_pos
+		_visual_offset += old_position - new_position
 	else:
-		# Large divergence: snap everything
-		_local_player.position = server_pos
 		_visual_offset = Vector2.ZERO
 
 
@@ -227,6 +238,12 @@ func get_interpolated_position(entity_id: int) -> Variant:
 	var tick_interval = MessageTypes.TICK_INTERVAL_MS / 1000.0
 	var t = clampf(_snapshot_time / tick_interval, 0.0, 1.0)
 	return prev_pos.lerp(curr_pos, t)
+
+
+func get_local_player_position() -> Variant:
+	if _local_player == null:
+		return null
+	return _local_player.position
 
 
 func get_visual_offset() -> Vector2:

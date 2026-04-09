@@ -25,8 +25,8 @@ enum EntityFlags {
 class Layout:
     # Snapshot frame header: [msg_type: u8][tick: u32][entity_count: u16]
     const SNAPSHOT_HEADER_SIZE = 7
-    # Per-entity: [entity_id: u16][x: f32][y: f32][flags: u8]
-    const ENTITY_SIZE = 11
+    # Per-entity: [entity_id: u16][x: f32][y: f32][flags: u8][last_input_seq: u16]
+    const ENTITY_SIZE = 13
     # Player input: [msg_type: u8][tick: u32][dir_x: f32][dir_y: f32][input_seq: u16]
     const INPUT_SIZE = 15
     # Snapshot ACK: [msg_type: u8][tick: u32]

@@ -54,6 +54,8 @@ func test_to_snapshot_data():
 	assert_eq(data["entity_id"], 3)
 	assert_eq(data["position"], Vector2(50.0, 75.0))
 	assert_eq(data["flags"], MessageTypes.EntityFlags.MOVING)
+	assert_true(data.has("last_input_seq"), "Snapshot data should include last_input_seq")
+	assert_eq(data["last_input_seq"], 0, "Default last_input_seq should be 0")
 
 
 func test_to_snapshot_data_not_moving():
@@ -62,3 +64,13 @@ func test_to_snapshot_data_not_moving():
 	player.initialize(3, Vector2(50.0, 75.0))
 	var data = player.to_snapshot_data()
 	assert_eq(data["flags"], MessageTypes.EntityFlags.NONE)
+	assert_eq(data["last_input_seq"], 0)
+
+
+func test_to_snapshot_data_tracks_input_seq():
+	var player = PlayerEntityScene.instantiate()
+	add_child_autofree(player)
+	player.initialize(3, Vector2(50.0, 75.0))
+	player.last_processed_input_seq = 42
+	var data = player.to_snapshot_data()
+	assert_eq(data["last_input_seq"], 42)

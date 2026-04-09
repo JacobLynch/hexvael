@@ -36,8 +36,8 @@ func test_encode_decode_snapshot_ack():
 
 func test_encode_decode_full_snapshot():
 	var entities = [
-		{"entity_id": 1, "position": Vector2(100.5, 200.75), "flags": MessageTypes.EntityFlags.MOVING},
-		{"entity_id": 2, "position": Vector2(300.0, 400.0), "flags": MessageTypes.EntityFlags.NONE},
+		{"entity_id": 1, "position": Vector2(100.5, 200.75), "flags": MessageTypes.EntityFlags.MOVING, "last_input_seq": 42},
+		{"entity_id": 2, "position": Vector2(300.0, 400.0), "flags": MessageTypes.EntityFlags.NONE, "last_input_seq": 0},
 	]
 	var msg = {
 		"type": MessageTypes.Binary.FULL_SNAPSHOT,
@@ -56,11 +56,13 @@ func test_encode_decode_full_snapshot():
 	assert_almost_eq(decoded["entities"][0]["position"].x, 100.5, 0.01)
 	assert_almost_eq(decoded["entities"][0]["position"].y, 200.75, 0.01)
 	assert_eq(decoded["entities"][0]["flags"], MessageTypes.EntityFlags.MOVING)
+	assert_eq(decoded["entities"][0]["last_input_seq"], 42)
+	assert_eq(decoded["entities"][1]["last_input_seq"], 0)
 
 
 func test_encode_decode_delta_snapshot():
 	var entities = [
-		{"entity_id": 1, "position": Vector2(105.0, 205.0), "flags": MessageTypes.EntityFlags.MOVING},
+		{"entity_id": 1, "position": Vector2(105.0, 205.0), "flags": MessageTypes.EntityFlags.MOVING, "last_input_seq": 7},
 	]
 	var msg = {
 		"type": MessageTypes.Binary.DELTA_SNAPSHOT,

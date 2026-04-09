@@ -106,6 +106,7 @@ static func _encode_snapshot(msg: Dictionary) -> PackedByteArray:
 		buf.encode_float(offset + 2, pos.x)
 		buf.encode_float(offset + 6, pos.y)
 		buf.encode_u8(offset + 10, ent["flags"])
+		buf.encode_u16(offset + 11, ent.get("last_input_seq", 0))
 	return buf
 
 
@@ -124,6 +125,7 @@ static func _decode_snapshot(bytes: PackedByteArray, type: int) -> Variant:
 			"entity_id": bytes.decode_u16(offset),
 			"position": Vector2(bytes.decode_float(offset + 2), bytes.decode_float(offset + 6)),
 			"flags": bytes.decode_u8(offset + 10),
+			"last_input_seq": bytes.decode_u16(offset + 11),
 		})
 	return {
 		"type": type,

@@ -31,4 +31,5 @@ func to_snapshot_data() -> Dictionary:
 		"entity_id": player_id,
 		"position": position,
 		"flags": flags,
+		"last_input_seq": last_processed_input_seq,
 	}

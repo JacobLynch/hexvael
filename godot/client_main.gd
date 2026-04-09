@@ -34,6 +34,11 @@ func _on_connected(player_id: int):
 	_net_client.set_local_player(_local_player)
 
 
+func _process(_delta: float):
+	if _net_client.is_server_connected():
+		_net_client.input_direction = Input.get_vector("move_left", "move_right", "move_up", "move_down")
+
+
 func _on_disconnected():
 	_connection_ui.set_disconnected()
 	if _local_player != null:

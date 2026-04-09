@@ -17,7 +17,7 @@ static func diff(baseline: Snapshot, current: Snapshot) -> Array:
 		else:
 			var base_ent = baseline.entities[eid]
 			var curr_ent = current.entities[eid]
-			if not base_ent["position"].is_equal_approx(curr_ent["position"]) or base_ent["flags"] != curr_ent["flags"]:
+			if not base_ent["position"].is_equal_approx(curr_ent["position"]) or base_ent["flags"] != curr_ent["flags"] or base_ent.get("last_input_seq", 0) != curr_ent.get("last_input_seq", 0):
 				changes.append(curr_ent.duplicate())
 
 	# Check for removed entities
@@ -27,6 +27,7 @@ static func diff(baseline: Snapshot, current: Snapshot) -> Array:
 				"entity_id": eid,
 				"position": Vector2.ZERO,
 				"flags": MessageTypes.EntityFlags.REMOVED,
+				"last_input_seq": 0,
 			})
 
 	return changes

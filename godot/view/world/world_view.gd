@@ -55,9 +55,10 @@ func _process(delta: float):
 		var view = _player_views[player_id]
 		if view.is_local:
 			# Local player: follow entity position + visual offset
-			if _net_client._local_player != null:
+			var local_pos = _net_client.get_local_player_position()
+			if local_pos != null:
 				var offset = _net_client.get_visual_offset()
-				view.update_position(_net_client._local_player.position + offset)
+				view.update_position(local_pos + offset)
 				_net_client.blend_visual_offset(delta)
 		else:
 			var interp_pos = _net_client.get_interpolated_position(player_id)
