@@ -139,3 +139,31 @@ func test_empty_snapshot():
 
 	var decoded = NetMessage.decode_binary(bytes)
 	assert_eq(decoded["entities"].size(), 0)
+
+
+func test_input_seq_supports_u32_range():
+	var large_seq: int = 100000  # Well beyond u16 max of 65535
+	var msg = {
+		"type": MessageTypes.Binary.PLAYER_INPUT,
+		"tick": 1,
+		"direction": Vector2.ZERO,
+		"input_seq": large_seq,
+	}
+	var bytes = NetMessage.encode(msg)
+	var decoded = NetMessage.decode_binary(bytes)
+	assert_eq(decoded["input_seq"], large_seq)
+
+
+func test_last_input_seq_supports_u32_range():
+	var large_seq: int = 100000
+	var entities = [
+		{"entity_id": 1, "position": Vector2.ZERO, "flags": 0, "last_input_seq": large_seq},
+	]
+	var msg = {
+		"type": MessageTypes.Binary.FULL_SNAPSHOT,
+		"tick": 1,
+		"entities": entities,
+	}
+	var bytes = NetMessage.encode(msg)
+	var decoded = NetMessage.decode_binary(bytes)
+	assert_eq(decoded["entities"][0]["last_input_seq"], large_seq)

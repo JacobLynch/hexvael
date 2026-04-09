@@ -53,7 +53,7 @@ static func _encode_player_input(msg: Dictionary) -> PackedByteArray:
 	buf.encode_u32(1, msg["tick"])
 	buf.encode_float(5, dir.x)
 	buf.encode_float(9, dir.y)
-	buf.encode_u16(13, msg["input_seq"])
+	buf.encode_u32(13, msg["input_seq"])
 	return buf
 
 
@@ -64,7 +64,7 @@ static func _decode_player_input(bytes: PackedByteArray) -> Variant:
 		"type": MessageTypes.Binary.PLAYER_INPUT,
 		"tick": bytes.decode_u32(1),
 		"direction": Vector2(bytes.decode_float(5), bytes.decode_float(9)),
-		"input_seq": bytes.decode_u16(13),
+		"input_seq": bytes.decode_u32(13),
 	}
 
 
@@ -106,7 +106,7 @@ static func _encode_snapshot(msg: Dictionary) -> PackedByteArray:
 		buf.encode_float(offset + 2, pos.x)
 		buf.encode_float(offset + 6, pos.y)
 		buf.encode_u8(offset + 10, ent["flags"])
-		buf.encode_u16(offset + 11, ent.get("last_input_seq", 0))
+		buf.encode_u32(offset + 11, ent.get("last_input_seq", 0))
 	return buf
 
 
@@ -125,7 +125,7 @@ static func _decode_snapshot(bytes: PackedByteArray, type: int) -> Variant:
 			"entity_id": bytes.decode_u16(offset),
 			"position": Vector2(bytes.decode_float(offset + 2), bytes.decode_float(offset + 6)),
 			"flags": bytes.decode_u8(offset + 10),
-			"last_input_seq": bytes.decode_u16(offset + 11),
+			"last_input_seq": bytes.decode_u32(offset + 11),
 		})
 	return {
 		"type": type,
