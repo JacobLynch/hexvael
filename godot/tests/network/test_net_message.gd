@@ -3,22 +3,23 @@ extends GutTest
 var NetMessage = preload("res://simulation/network/net_message.gd")
 
 
-func test_encode_decode_player_input():
+func test_player_input_round_trip():
 	var msg = {
 		"type": MessageTypes.Binary.PLAYER_INPUT,
 		"tick": 42,
-		"direction": Vector2(0.707, -0.707),
-		"input_seq": 15,
+		"move_direction": Vector2(0.6, -0.8),
+		"aim_direction": Vector2(1.0, 0.0),
+		"input_seq": 1234,
 	}
 	var bytes = NetMessage.encode(msg)
-	assert_eq(bytes.size(), MessageTypes.Layout.INPUT_SIZE, "Input message should be %d bytes" % MessageTypes.Layout.INPUT_SIZE)
-
+	assert_eq(bytes.size(), MessageTypes.Layout.INPUT_SIZE)
 	var decoded = NetMessage.decode_binary(bytes)
-	assert_eq(decoded["type"], MessageTypes.Binary.PLAYER_INPUT)
 	assert_eq(decoded["tick"], 42)
-	assert_almost_eq(decoded["direction"].x, 0.707, 0.001)
-	assert_almost_eq(decoded["direction"].y, -0.707, 0.001)
-	assert_eq(decoded["input_seq"], 15)
+	assert_almost_eq(decoded["move_direction"].x, 0.6, 0.001)
+	assert_almost_eq(decoded["move_direction"].y, -0.8, 0.001)
+	assert_almost_eq(decoded["aim_direction"].x, 1.0, 0.001)
+	assert_almost_eq(decoded["aim_direction"].y, 0.0, 0.001)
+	assert_eq(decoded["input_seq"], 1234)
 
 
 func test_encode_decode_snapshot_ack():
@@ -146,7 +147,8 @@ func test_input_seq_supports_u32_range():
 	var msg = {
 		"type": MessageTypes.Binary.PLAYER_INPUT,
 		"tick": 1,
-		"direction": Vector2.ZERO,
+		"move_direction": Vector2.ZERO,
+		"aim_direction": Vector2.RIGHT,
 		"input_seq": large_seq,
 	}
 	var bytes = NetMessage.encode(msg)

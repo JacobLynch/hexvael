@@ -20,7 +20,7 @@ func _make_player() -> PlayerEntity:
 
 func test_accel_reaches_top_speed():
 	var p = _make_player()
-	p.apply_input(Vector2(1.0, 0.0))
+	p.apply_input({"move_direction": Vector2(1.0, 0.0), "aim_direction": Vector2.RIGHT})
 	# At accel=1800, top_speed=200, time to top is ~0.111s. Advance 0.2s in small steps.
 	for i in range(20):
 		p.advance(0.01)
@@ -30,7 +30,7 @@ func test_accel_reaches_top_speed():
 func test_friction_decays_to_near_zero_after_release():
 	var p = _make_player()
 	p.velocity = Vector2(200.0, 0.0)
-	p.apply_input(Vector2.ZERO)
+	p.apply_input({"move_direction": Vector2.ZERO, "aim_direction": Vector2.RIGHT})
 	# Exponential friction at coeff=18 halves in ~38ms. After 0.3s should be < 1.
 	for i in range(30):
 		p.advance(0.01)
@@ -41,11 +41,11 @@ func test_dt_independence_canary():
 	# THE CANARY: running advance(0.1) once vs advance(0.01) ten times must converge.
 	# If this fails, someone wrote framerate-dependent math (velocity *= 0.9 etc).
 	var coarse = _make_player()
-	coarse.apply_input(Vector2(1.0, 0.0))
+	coarse.apply_input({"move_direction": Vector2(1.0, 0.0), "aim_direction": Vector2.RIGHT})
 	coarse.advance(0.1)
 
 	var fine = _make_player()
-	fine.apply_input(Vector2(1.0, 0.0))
+	fine.apply_input({"move_direction": Vector2(1.0, 0.0), "aim_direction": Vector2.RIGHT})
 	for i in range(10):
 		fine.advance(0.01)
 
@@ -66,7 +66,7 @@ func test_idle_stays_at_rest():
 
 func test_diagonal_input_normalizes():
 	var p = _make_player()
-	p.apply_input(Vector2(1.0, 1.0))
+	p.apply_input({"move_direction": Vector2(1.0, 1.0), "aim_direction": Vector2.RIGHT})
 	# Advance long enough to reach top speed
 	for i in range(30):
 		p.advance(0.01)
@@ -76,7 +76,7 @@ func test_diagonal_input_normalizes():
 
 func test_advance_moves_position_with_velocity():
 	var p = _make_player()
-	p.apply_input(Vector2(1.0, 0.0))
+	p.apply_input({"move_direction": Vector2(1.0, 0.0), "aim_direction": Vector2.RIGHT})
 	# Pre-set velocity to skip accel ramp
 	p.velocity = Vector2(200.0, 0.0)
 	var before = p.position.x

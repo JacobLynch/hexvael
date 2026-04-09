@@ -18,16 +18,17 @@ func before_each():
 
 func test_process_inputs_applies_direction():
 	var inputs = [
-		{"input_seq": 1, "direction": Vector2(1.0, 0.0), "tick": 10},
+		{"input_seq": 1, "move_direction": Vector2(1.0, 0.0), "aim_direction": Vector2.RIGHT, "tick": 10},
 	]
 	_system.process_inputs_for_player(1, inputs)
 	assert_eq(_player.move_input, Vector2(1.0, 0.0))
+	assert_eq(_player.aim_direction, Vector2.RIGHT)
 
 
 func test_process_multiple_inputs_applies_last():
 	var inputs = [
-		{"input_seq": 1, "direction": Vector2(1.0, 0.0), "tick": 10},
-		{"input_seq": 2, "direction": Vector2(0.0, -1.0), "tick": 10},
+		{"input_seq": 1, "move_direction": Vector2(1.0, 0.0), "aim_direction": Vector2.RIGHT, "tick": 10},
+		{"input_seq": 2, "move_direction": Vector2(0.0, -1.0), "aim_direction": Vector2.UP, "tick": 10},
 	]
 	_system.process_inputs_for_player(1, inputs)
 	# After processing both, move_input should reflect the last input
@@ -35,13 +36,13 @@ func test_process_multiple_inputs_applies_last():
 
 
 func test_process_empty_inputs_keeps_last_velocity():
-	_player.apply_input(Vector2(1.0, 0.0))
+	_player.apply_input({"move_direction": Vector2(1.0, 0.0), "aim_direction": Vector2.RIGHT})
 	_system.process_inputs_for_player(1, [])
 	assert_eq(_player.move_input, Vector2(1.0, 0.0))
 
 
 func test_advance_all_moves_players():
-	_player.apply_input(Vector2(1.0, 0.0))
+	_player.apply_input({"move_direction": Vector2(1.0, 0.0), "aim_direction": Vector2.RIGHT})
 	var pos_before = _player.position
 	var tick_dt = MessageTypes.TICK_INTERVAL_MS / 1000.0
 	# Accel needs a few ticks to build up movement
@@ -58,8 +59,8 @@ func test_register_and_unregister_player():
 
 func test_updates_last_processed_seq():
 	var inputs = [
-		{"input_seq": 5, "direction": Vector2(1.0, 0.0), "tick": 10},
-		{"input_seq": 7, "direction": Vector2(0.0, 1.0), "tick": 10},
+		{"input_seq": 5, "move_direction": Vector2(1.0, 0.0), "aim_direction": Vector2.RIGHT, "tick": 10},
+		{"input_seq": 7, "move_direction": Vector2(0.0, 1.0), "aim_direction": Vector2.RIGHT, "tick": 10},
 	]
 	_system.process_inputs_for_player(1, inputs)
 	assert_eq(_player.last_processed_input_seq, 7)

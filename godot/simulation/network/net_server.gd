@@ -218,11 +218,12 @@ func _handle_binary_message(peer_id: int, bytes: PackedByteArray):
 
 	match msg["type"]:
 		MessageTypes.Binary.PLAYER_INPUT:
-			var dir: Vector2 = msg["direction"]
-			if not (is_finite(dir.x) and is_finite(dir.y)):
+			var move_dir: Vector2 = msg["move_direction"]
+			var aim_dir: Vector2 = msg["aim_direction"]
+			if not (is_finite(move_dir.x) and is_finite(move_dir.y) and is_finite(aim_dir.x) and is_finite(aim_dir.y)):
 				return  # Reject non-finite input
-			if dir.length_squared() > 2.0:  # Allow slightly over 1.0 for float imprecision
-				return  # Reject absurd values
+			if move_dir.length_squared() > 2.0 or aim_dir.length_squared() > 2.0:
+				return  # Reject absurd values (aim is expected to be a unit vector)
 			_input_buffer.add_input(player_id, msg)
 		MessageTypes.Binary.SNAPSHOT_ACK:
 			_handle_snapshot_ack(player_id, msg["tick"])

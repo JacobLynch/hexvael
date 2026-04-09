@@ -26,9 +26,7 @@ func process_inputs_for_player(player_id: int, inputs: Array) -> void:
 		return
 	var player: PlayerEntity = _players[player_id]
 	for input in inputs:
-		player.apply_input(input["direction"])
-		if input["input_seq"] > player.last_processed_input_seq:
-			player.last_processed_input_seq = input["input_seq"]
+		player.apply_input(input)
 
 
 func advance_all(dt: float) -> void:

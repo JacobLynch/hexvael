@@ -48,12 +48,15 @@ static func decode_json(text: String) -> Variant:
 static func _encode_player_input(msg: Dictionary) -> PackedByteArray:
 	var buf = PackedByteArray()
 	buf.resize(MessageTypes.Layout.INPUT_SIZE)
-	var dir: Vector2 = msg["direction"]
+	var move_dir: Vector2 = msg["move_direction"]
+	var aim_dir: Vector2 = msg["aim_direction"]
 	buf.encode_u8(0, MessageTypes.Binary.PLAYER_INPUT)
 	buf.encode_u32(1, msg["tick"])
-	buf.encode_float(5, dir.x)
-	buf.encode_float(9, dir.y)
-	buf.encode_u32(13, msg["input_seq"])
+	buf.encode_float(5, move_dir.x)
+	buf.encode_float(9, move_dir.y)
+	buf.encode_float(13, aim_dir.x)
+	buf.encode_float(17, aim_dir.y)
+	buf.encode_u32(21, msg["input_seq"])
 	return buf
 
 
@@ -63,8 +66,9 @@ static func _decode_player_input(bytes: PackedByteArray) -> Variant:
 	return {
 		"type": MessageTypes.Binary.PLAYER_INPUT,
 		"tick": bytes.decode_u32(1),
-		"direction": Vector2(bytes.decode_float(5), bytes.decode_float(9)),
-		"input_seq": bytes.decode_u32(13),
+		"move_direction": Vector2(bytes.decode_float(5), bytes.decode_float(9)),
+		"aim_direction": Vector2(bytes.decode_float(13), bytes.decode_float(17)),
+		"input_seq": bytes.decode_u32(21),
 	}
 
 

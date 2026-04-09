@@ -17,10 +17,12 @@ func initialize(id: int, spawn_position: Vector2) -> void:
 
 
 # Ingest: called by MovementSystem when dequeuing inputs.
-# In Task 3 this signature expands to apply_input(Dictionary). For this task
-# it still takes a Vector2 to keep the refactor scoped.
-func apply_input(direction: Vector2) -> void:
-	move_input = direction
+# Takes a Dictionary with keys: move_direction, aim_direction (optional), input_seq (optional).
+func apply_input(input: Dictionary) -> void:
+	move_input = input.get("move_direction", Vector2.ZERO)
+	aim_direction = input.get("aim_direction", aim_direction)  # keep old if missing
+	if input.has("input_seq") and input["input_seq"] > last_processed_input_seq:
+		last_processed_input_seq = input["input_seq"]
 
 
 # Canonical movement step. Called by:

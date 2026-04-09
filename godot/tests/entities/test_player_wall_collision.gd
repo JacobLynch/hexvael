@@ -31,7 +31,7 @@ func before_each():
 func test_player_stops_at_right_wall():
 	# Place player near right edge, moving right
 	_player.initialize(1, Vector2(470.0, 160.0))
-	_player.apply_input(Vector2(1.0, 0.0))
+	_player.apply_input({"move_direction": Vector2(1.0, 0.0), "aim_direction": Vector2.RIGHT})
 
 	# Run enough ticks to push well past the wall if there were no collision
 	for i in range(20):
@@ -43,7 +43,7 @@ func test_player_stops_at_right_wall():
 
 func test_player_stops_at_left_wall():
 	_player.initialize(1, Vector2(10.0, 160.0))
-	_player.apply_input(Vector2(-1.0, 0.0))
+	_player.apply_input({"move_direction": Vector2(-1.0, 0.0), "aim_direction": Vector2.LEFT})
 
 	for i in range(20):
 		_player.advance(TICK_S)
@@ -54,7 +54,7 @@ func test_player_stops_at_left_wall():
 
 func test_player_stops_at_top_wall():
 	_player.initialize(1, Vector2(240.0, 10.0))
-	_player.apply_input(Vector2(0.0, -1.0))
+	_player.apply_input({"move_direction": Vector2(0.0, -1.0), "aim_direction": Vector2.UP})
 
 	for i in range(20):
 		_player.advance(TICK_S)
@@ -65,7 +65,7 @@ func test_player_stops_at_top_wall():
 
 func test_player_stops_at_bottom_wall():
 	_player.initialize(1, Vector2(240.0, 310.0))
-	_player.apply_input(Vector2(0.0, 1.0))
+	_player.apply_input({"move_direction": Vector2(0.0, 1.0), "aim_direction": Vector2.DOWN})
 
 	for i in range(20):
 		_player.advance(TICK_S)
@@ -77,7 +77,7 @@ func test_player_stops_at_bottom_wall():
 func test_player_held_against_wall_stays_put():
 	# Player already at the wall, holding into it — should not drift
 	_player.initialize(1, Vector2(474.0, 160.0))
-	_player.apply_input(Vector2(1.0, 0.0))
+	_player.apply_input({"move_direction": Vector2(1.0, 0.0), "aim_direction": Vector2.RIGHT})
 
 	_player.advance(TICK_S)
 	var pos_after_one = _player.position

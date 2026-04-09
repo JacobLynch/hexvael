@@ -38,6 +38,7 @@ var _input_timer: float = 0.0
 
 # Direction set by caller each frame (view/input layer)
 var input_direction: Vector2 = Vector2.ZERO
+var aim_direction: Vector2 = Vector2.RIGHT  # set by caller each frame
 
 
 func connect_to_server(address: String, port: int) -> Error:
@@ -66,7 +67,10 @@ func _process(delta: float):
 		# Frame-rate prediction: run canonical advance() at display framerate.
 		# dt-independent math means client and server produce the same result.
 		if _local_player != null:
-			_local_player.apply_input(input_direction)
+			_local_player.apply_input({
+				"move_direction": input_direction,
+				"aim_direction": aim_direction,
+			})
 			_local_player.advance(delta)
 
 		# Send input at tick rate (network bandwidth stays at 20Hz)
@@ -167,21 +171,20 @@ func _send_input():
 
 	_input_seq += 1
 
-	# Store for reconciliation (direction only — position is continuous now)
-	_pending_inputs.append({
+	var input = {
 		"seq": _input_seq,
-		"direction": input_direction,
-	})
-
-	# Cap pending inputs to prevent unbounded growth during network disruption
+		"move_direction": input_direction,
+		"aim_direction": aim_direction,
+	}
+	_pending_inputs.append(input)
 	if _pending_inputs.size() > MAX_PENDING_INPUTS:
 		_pending_inputs = _pending_inputs.slice(-MAX_PENDING_INPUTS)
 
-	# Send to server
 	var msg = {
 		"type": MessageTypes.Binary.PLAYER_INPUT,
 		"tick": _server_tick,
-		"direction": input_direction,
+		"move_direction": input_direction,
+		"aim_direction": aim_direction,
 		"input_seq": _input_seq,
 	}
 	_ws.send(NetMessage.encode(msg))
@@ -211,7 +214,10 @@ func _reconcile_local_player(snap: Snapshot):
 	# using tick interval as dt to match how the server processed them.
 	var tick_dt: float = MessageTypes.TICK_INTERVAL_MS / 1000.0
 	for pending in _pending_inputs:
-		_local_player.apply_input(pending["direction"])
+		_local_player.apply_input({
+			"move_direction": pending["move_direction"],
+			"aim_direction": pending["aim_direction"],
+		})
 		_local_player.advance(tick_dt)
 
 	# Visual offset: smoothly blend from old visual position to new logical position

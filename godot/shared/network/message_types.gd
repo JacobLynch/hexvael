@@ -28,8 +28,9 @@ class Layout:
     const SNAPSHOT_HEADER_SIZE = 7
     # Per-entity: [entity_id: u16][x: f32][y: f32][flags: u8][last_input_seq: u32]
     const ENTITY_SIZE = 15
-    # Player input: [msg_type: u8][tick: u32][dir_x: f32][dir_y: f32][input_seq: u32]
-    const INPUT_SIZE = 17
+    # Player input: [msg_type:u8][tick:u32][move_x:f32][move_y:f32]
+    #               [aim_x:f32][aim_y:f32][input_seq:u32]
+    const INPUT_SIZE = 25
     # Snapshot ACK: [msg_type: u8][tick: u32]
     const ACK_SIZE = 5
 
