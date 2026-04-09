@@ -39,3 +39,4 @@ const TICK_INTERVAL_MS: float = 1000.0 / TICK_RATE
 const ACK_TIMEOUT_SECONDS: float = 3.0
 const ACK_TIMEOUT_TICKS: int = int(ACK_TIMEOUT_SECONDS * TICK_RATE)
 const SPAWN_POSITION = Vector2(240.0, 160.0)  # Center of 30x20 arena
+const ZOMBIE_TIMEOUT_MS: int = 10000  # 10 seconds with no data = disconnect

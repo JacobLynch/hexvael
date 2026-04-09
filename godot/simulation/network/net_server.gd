@@ -12,6 +12,8 @@ var _peer_to_player: Dictionary = {}
 var _player_to_peer: Dictionary = {}
 # ip -> Array of connection timestamps (for rate limiting)
 var _connection_attempts: Dictionary = {}
+# peer_id -> last activity timestamp (msec)
+var _last_activity: Dictionary = {}
 
 var _movement_system: MovementSystem
 var _input_buffer := InputBuffer.new()
@@ -45,6 +47,7 @@ func _ready():
 func _process(delta: float):
 	_accept_connections()
 	_poll_peers()
+	_check_zombies()
 	_tick_timer += delta
 	while _tick_timer >= MessageTypes.TICK_INTERVAL_MS / 1000.0:
 		_tick_timer -= MessageTypes.TICK_INTERVAL_MS / 1000.0
@@ -165,6 +168,7 @@ func _on_peer_connected(peer_id: int):
 		"position": MessageTypes.SPAWN_POSITION,
 	})
 	print("Player %d spawned" % player_id)
+	_last_activity[peer_id] = Time.get_ticks_msec()
 
 
 func _on_peer_disconnected(peer_id: int):
@@ -186,6 +190,7 @@ func _on_peer_disconnected(peer_id: int):
 	_player_to_peer.erase(player_id)
 	_peer_to_player.erase(peer_id)
 	_peers.erase(peer_id)
+	_last_activity.erase(peer_id)
 
 	# Notify other clients
 	var leave_msg = NetMessage.encode_json({
@@ -202,6 +207,7 @@ func _on_peer_disconnected(peer_id: int):
 
 
 func _handle_binary_message(peer_id: int, bytes: PackedByteArray):
+	_last_activity[peer_id] = Time.get_ticks_msec()
 	var msg = NetMessage.decode_binary(bytes)
 	if msg == null:
 		return  # Malformed -- silently drop
@@ -300,6 +306,20 @@ func _server_tick():
 				ws.send(NetMessage.encode(delta_msg))
 			# Store sent snapshot; baseline advances on ACK
 			_sent_snapshots[player_id][_tick] = snap_copy
+
+
+func _check_zombies() -> void:
+	var now = Time.get_ticks_msec()
+	var zombies: Array = []
+	for peer_id in _last_activity:
+		if (now - _last_activity[peer_id]) > MessageTypes.ZOMBIE_TIMEOUT_MS:
+			zombies.append(peer_id)
+	for peer_id in zombies:
+		print("Disconnecting zombie peer %d (no data for %dms)" % [peer_id, MessageTypes.ZOMBIE_TIMEOUT_MS])
+		var ws: WebSocketPeer = _peers.get(peer_id)
+		if ws != null:
+			ws.close()
+		_on_peer_disconnected(peer_id)
 
 
 func _build_current_snapshot() -> Snapshot:
