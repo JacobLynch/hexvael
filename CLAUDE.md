@@ -90,6 +90,10 @@ Every trigger must check `chain_depth` before firing, increment it when firing, 
 
 Every system must run without a display. If it doesn't, it's in the wrong layer.
 
+### Server and client worlds must stay in sync
+
+The server and client both need the same collision geometry for client-side prediction to work. If the client is missing collision that the server has, prediction diverges and the player rubber-bands. Shared world geometry (walls, obstacles, terrain collision) must live in a shared scene (e.g. `arena_walls.tscn`) instanced by both `server.tscn` and `client.tscn`. Never define collision in only one scene.
+
 ---
 
 ## What Not To Build
