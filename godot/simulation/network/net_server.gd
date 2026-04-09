@@ -309,13 +309,13 @@ func _server_tick():
 
 
 func _check_zombies() -> void:
-	var now = Time.get_ticks_msec()
+	var now: int = Time.get_ticks_msec()
 	var zombies: Array = []
 	for peer_id in _last_activity:
 		if (now - _last_activity[peer_id]) > MessageTypes.ZOMBIE_TIMEOUT_MS:
 			zombies.append(peer_id)
 	for peer_id in zombies:
-		print("Disconnecting zombie peer %d (no data for %dms)" % [peer_id, MessageTypes.ZOMBIE_TIMEOUT_MS])
+		print("Disconnecting zombie peer %d (no data for %dms)" % [peer_id, now - _last_activity[peer_id]])
 		var ws: WebSocketPeer = _peers.get(peer_id)
 		if ws != null:
 			ws.close()
