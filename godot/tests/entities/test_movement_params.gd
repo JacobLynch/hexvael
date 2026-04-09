@@ -10,6 +10,7 @@ func test_default_values():
     assert_almost_eq(params.dodge_speed, 700.0, 0.01)
     assert_almost_eq(params.dodge_duration, 0.2, 0.001)
     assert_almost_eq(params.dodge_cooldown, 0.7, 0.001)
+    assert_almost_eq(params.dodge_iframe_duration, 0.2, 0.001)
 
 func test_default_tres_loads():
     var params = load("res://shared/movement/default_movement_params.tres")
