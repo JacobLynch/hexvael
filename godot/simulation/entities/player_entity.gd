@@ -10,6 +10,11 @@ var move_input: Vector2 = Vector2.ZERO       # latest WASD direction (raw, not n
 var aim_direction: Vector2 = Vector2.RIGHT   # latest aim unit vector (used later)
 var state: int = PlayerMovementState.WALKING
 
+# Dodge state
+var dodge_direction: Vector2 = Vector2.ZERO
+var dodge_time_remaining: float = 0.0
+var dodge_cooldown_remaining: float = 0.0
+
 
 func initialize(id: int, spawn_position: Vector2) -> void:
 	player_id = id
@@ -26,8 +31,32 @@ func apply_input(input: Dictionary) -> void:
 	var incoming_aim: Vector2 = input.get("aim_direction", aim_direction)
 	if incoming_aim.length_squared() > 0.001:
 		aim_direction = incoming_aim.normalized()
+	if input.get("dodge_pressed", false) and can_dodge():
+		start_dodge()
 	if input.has("input_seq") and input["input_seq"] > last_processed_input_seq:
 		last_processed_input_seq = input["input_seq"]
+
+
+# Public — NetClient prediction calls this to gate its own dodge starts
+func can_dodge() -> bool:
+	return state == PlayerMovementState.WALKING and dodge_cooldown_remaining <= 0.0
+
+
+func start_dodge() -> void:
+	var dir: Vector2
+	if move_input.length_squared() > 0.01:
+		dir = move_input.normalized()
+	else:
+		dir = aim_direction
+	state = PlayerMovementState.DODGING
+	dodge_direction = dir
+	dodge_time_remaining = params.dodge_duration
+	dodge_cooldown_remaining = params.dodge_cooldown
+	EventBus.player_dodge_started.emit({
+		"entity_id": player_id,
+		"position": position,
+		"direction": dir,
+	})
 
 
 # Canonical movement step. Called by:
@@ -38,6 +67,10 @@ func apply_input(input: Dictionary) -> void:
 func advance(dt: float) -> void:
 	# Capture pre-step velocity for midpoint position integration (dt-independent).
 	var v_old: Vector2 = velocity
+
+	# Tick cooldown regardless of state
+	if dodge_cooldown_remaining > 0.0:
+		dodge_cooldown_remaining = max(0.0, dodge_cooldown_remaining - dt)
 
 	# Compute target velocity from input + state
 	match state:
@@ -50,7 +83,13 @@ func advance(dt: float) -> void:
 				velocity *= exp(-params.friction * dt)
 				if velocity.length_squared() < 0.01:
 					velocity = Vector2.ZERO
-		# DODGING state handled in Task 4
+
+		PlayerMovementState.DODGING:
+			velocity = dodge_direction * params.dodge_speed
+			dodge_time_remaining -= dt
+			if dodge_time_remaining <= 0.0:
+				state = PlayerMovementState.WALKING
+				EventBus.player_dodge_ended.emit({"entity_id": player_id})
 
 	# Midpoint integration: average pre- and post-step velocity for position.
 	# This ensures position is dt-independent during the accel ramp, not just at
