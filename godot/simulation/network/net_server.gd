@@ -132,7 +132,7 @@ func _on_peer_connected(peer_id: int):
 		"type": MessageTypes.JsonMsg.HANDSHAKE,
 		"server_tick": _tick,
 		"player_id": player_id,
-		"world_seed": RNG._rng.seed,
+		"world_seed": RNG.get_seed(),
 	})
 	ws.send_text(handshake)
 
@@ -288,13 +288,16 @@ func _server_tick():
 				ws.send(NetMessage.encode(full_msg))
 			else:
 				var delta = Snapshot.diff(baseline, current_snap)
-				if delta.size() > 0:
-					var delta_msg = {
-						"type": MessageTypes.Binary.DELTA_SNAPSHOT,
-						"tick": _tick,
-						"entities": delta,
-					}
-					ws.send(NetMessage.encode(delta_msg))
+				# Always send deltas, even empty ones, so the client receives a
+				# consistent tick stream. Without this, the client can't distinguish
+				# "nothing changed" from "packet lost", causing the remote player
+				# interpolation to freeze and jump.
+				var delta_msg = {
+					"type": MessageTypes.Binary.DELTA_SNAPSHOT,
+					"tick": _tick,
+					"entities": delta,
+				}
+				ws.send(NetMessage.encode(delta_msg))
 			# Store sent snapshot; baseline advances on ACK
 			_sent_snapshots[player_id][_tick] = snap_copy
 
