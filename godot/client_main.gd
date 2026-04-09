@@ -16,6 +16,20 @@ func _ready():
 	_net_client.connected.connect(_on_connected)
 	_net_client.disconnected.connect(_on_disconnected)
 
+	# Auto-connect if CLI args provided: -- --server localhost --port 9050
+	var address := ""
+	var port := 0
+	var args = OS.get_cmdline_user_args()
+	for i in range(args.size()):
+		if args[i] == "--server" and i + 1 < args.size():
+			address = args[i + 1]
+		if args[i] == "--port" and i + 1 < args.size():
+			port = int(args[i + 1])
+	if not address.is_empty():
+		if port <= 0:
+			port = 9050
+		_on_connect_requested(address, port)
+
 
 func _on_connect_requested(address: String, port: int):
 	var err = _net_client.connect_to_server(address, port)
