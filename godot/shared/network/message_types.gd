@@ -9,7 +9,7 @@ enum Binary {
 }
 
 # JSON message types — value of the "type" key
-class JSON:
+class JsonMsg:
     const HANDSHAKE = "handshake"
     const PLAYER_JOINED = "player_joined"
     const PLAYER_LEFT = "player_left"
