@@ -15,3 +15,7 @@ signal element_interaction(event: Dictionary)
 signal room_captured(event: Dictionary)
 signal wave_started(event: Dictionary)
 signal wave_ended(event: Dictionary)
+
+# Network
+signal player_connected(event: Dictionary)
+signal player_disconnected(event: Dictionary)
