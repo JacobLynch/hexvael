@@ -98,6 +98,29 @@ World geometry (collision, terrain, obstacles) lives in a single shared scene (e
 
 This guarantees sync by construction. Never define collision or world layout separately per side — if the client is missing collision the server has, prediction diverges and the player rubber-bands.
 
+### Simulation math is dt-independent
+
+Every simulation step function takes a `dt` parameter (seconds since last step) and produces the same result regardless of how dt is chunked. The server calls these functions once per 20Hz tick (`dt = 0.05`); the client may call them every display frame (`dt = frame_delta`) for prediction. They must converge.
+
+```gdscript
+# WRONG — framerate-dependent, silently diverges between client and server
+velocity *= 0.9                    # depends on how often you call it
+dodge_timer -= 1                   # "1 tick" means nothing outside the server loop
+
+# RIGHT — dt-independent, identical results at any call frequency
+velocity *= exp(-friction * dt)    # exponential decay
+dodge_timer -= dt                  # wall-clock seconds
+velocity += accel * dt             # linear accumulation
+```
+
+If you can't express a behavior in dt-independent form, it belongs in a layer that runs on a fixed tick (e.g. discrete state transitions), not in the continuous advance path.
+
+### Client and server share simulation code
+
+Prediction on the client and authoritative simulation on the server must call the **same function**, not reimplementations of it. One canonical `advance(dt)` per entity, one canonical system driver. Server calls it at tick rate; client calls it every frame for prediction and again during reconciliation to replay pending inputs. Never fork "client prediction logic" from "server logic" — the moment they diverge, the local player rubber-bands every snapshot.
+
+Rule of thumb: if a movement, combat, or physics behavior appears anywhere on the client, it must be calling the same `/simulation` code the server runs. View code reads state and renders it; it never re-implements simulation.
+
 ---
 
 ## What Not To Build
