@@ -34,6 +34,11 @@ var _input_timer: float = 0.0
 # Direction set by caller each frame (view/input layer)
 var input_direction: Vector2 = Vector2.ZERO
 
+# Local player visual extrapolation (smooth between 20Hz ticks)
+var _local_tick_position: Vector2 = Vector2.ZERO
+var _local_tick_velocity: Vector2 = Vector2.ZERO
+var _time_since_local_tick: float = 0.0
+
 
 func connect_to_server(address: String, port: int) -> Error:
 	var url = "ws://%s:%d" % [address, port]
@@ -67,6 +72,7 @@ func _process(delta: float):
 
 		# Advance interpolation timer
 		_snapshot_time += delta
+		_time_since_local_tick += delta
 
 	elif state == WebSocketPeer.STATE_CLOSED and _connected:
 		_connected = false
@@ -162,6 +168,11 @@ func _send_input():
 	_local_player.apply_input(direction)
 	_local_player.tick()
 
+	# Store tick state for visual extrapolation
+	_local_tick_position = _local_player.position
+	_local_tick_velocity = _local_player.velocity
+	_time_since_local_tick = 0.0
+
 	# Store prediction for reconciliation
 	_pending_inputs.append({
 		"seq": _input_seq,
@@ -204,6 +215,11 @@ func _reconcile_local_player(snap: Snapshot):
 		_local_player.apply_input(pending["direction"])
 		_local_player.tick()
 
+	# Update extrapolation state after re-prediction
+	_local_tick_position = _local_player.position
+	_local_tick_velocity = _local_player.velocity
+	_time_since_local_tick = 0.0
+
 	# Calculate visual correction (smooth from where we were to where we are now)
 	var new_position = _local_player.position
 	var correction_dist = old_position.distance_to(new_position)
@@ -243,7 +259,8 @@ func get_interpolated_position(entity_id: int) -> Variant:
 func get_local_player_position() -> Variant:
 	if _local_player == null:
 		return null
-	return _local_player.position
+	# Extrapolate between ticks for smooth frame-rate visual
+	return _local_tick_position + _local_tick_velocity * _time_since_local_tick
 
 
 func get_visual_offset() -> Vector2:
