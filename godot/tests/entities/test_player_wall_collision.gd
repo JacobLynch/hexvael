@@ -35,7 +35,7 @@ func test_player_stops_at_right_wall():
 
 	# Run enough ticks to push well past the wall if there were no collision
 	for i in range(20):
-		_player.tick()
+		_player.advance(TICK_S)
 
 	assert_lt(_player.position.x, 480.0,
 		"Player should not pass through the right wall")
@@ -46,7 +46,7 @@ func test_player_stops_at_left_wall():
 	_player.apply_input(Vector2(-1.0, 0.0))
 
 	for i in range(20):
-		_player.tick()
+		_player.advance(TICK_S)
 
 	assert_gt(_player.position.x, 0.0,
 		"Player should not pass through the left wall")
@@ -57,7 +57,7 @@ func test_player_stops_at_top_wall():
 	_player.apply_input(Vector2(0.0, -1.0))
 
 	for i in range(20):
-		_player.tick()
+		_player.advance(TICK_S)
 
 	assert_gt(_player.position.y, 0.0,
 		"Player should not pass through the top wall")
@@ -68,7 +68,7 @@ func test_player_stops_at_bottom_wall():
 	_player.apply_input(Vector2(0.0, 1.0))
 
 	for i in range(20):
-		_player.tick()
+		_player.advance(TICK_S)
 
 	assert_lt(_player.position.y, 320.0,
 		"Player should not pass through the bottom wall")
@@ -79,11 +79,11 @@ func test_player_held_against_wall_stays_put():
 	_player.initialize(1, Vector2(474.0, 160.0))
 	_player.apply_input(Vector2(1.0, 0.0))
 
-	_player.tick()
+	_player.advance(TICK_S)
 	var pos_after_one = _player.position
 
 	for i in range(10):
-		_player.tick()
+		_player.advance(TICK_S)
 
 	assert_almost_eq(_player.position.x, pos_after_one.x, 0.1,
 		"Player pressed against wall should not drift")

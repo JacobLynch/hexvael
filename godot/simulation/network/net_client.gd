@@ -63,10 +63,11 @@ func _process(delta: float):
 			else:
 				_handle_binary_message(packet)
 
-		# Frame-rate prediction: run physics every frame for instant response
+		# Frame-rate prediction: run canonical advance() at display framerate.
+		# dt-independent math means client and server produce the same result.
 		if _local_player != null:
 			_local_player.apply_input(input_direction)
-			_local_player.move_delta(delta)
+			_local_player.advance(delta)
 
 		# Send input at tick rate (network bandwidth stays at 20Hz)
 		_input_timer += delta
@@ -206,10 +207,12 @@ func _reconcile_local_player(snap: Snapshot):
 	# Snap to server authoritative position
 	_local_player.position = server_pos
 
-	# Replay unacknowledged inputs at tick delta (matching server simulation)
+	# Replay unacknowledged inputs through the canonical advance function,
+	# using tick interval as dt to match how the server processed them.
+	var tick_dt: float = MessageTypes.TICK_INTERVAL_MS / 1000.0
 	for pending in _pending_inputs:
 		_local_player.apply_input(pending["direction"])
-		_local_player.tick()
+		_local_player.advance(tick_dt)
 
 	# Visual offset: smoothly blend from old visual position to new logical position
 	var correction: Vector2 = visual_before - _local_player.position

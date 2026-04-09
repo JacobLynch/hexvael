@@ -36,7 +36,7 @@ func test_local_player_stops_at_remote_proxy():
 
 	_local.apply_input(Vector2(1.0, 0.0))
 	for i in range(20):
-		_local.tick()
+		_local.advance(TICK_S)
 
 	# Local player (12x12) and proxy (12x12) — they should collide.
 	# Player at x=100 moving right toward proxy at x=120.
@@ -54,7 +54,7 @@ func test_local_player_slides_along_remote_proxy():
 
 	_local.apply_input(Vector2(1.0, 1.0).normalized())
 	for i in range(20):
-		_local.tick()
+		_local.advance(TICK_S)
 
 	# Player should have deflected downward — y must have changed
 	assert_gt(absf(_local.position.y - 160.0), 1.0,

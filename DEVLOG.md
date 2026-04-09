@@ -1,5 +1,12 @@
 # Devlog
 
+## 2026-04-09 (movement-feel T2)
+- Introduced `PlayerEntity.advance(dt)` as the single canonical movement step shared by client and server
+- Replaced framerate-dependent `velocity *= 0.9`-style code with dt-independent math: exponential friction (`exp(-friction*dt)`) and midpoint position integration during accel ramp
+- `MovementSystem.tick_all()` renamed to `advance_all(dt)`; server and client reconciliation both call the same function
+- Added dt-independence canary test: one coarse step vs ten fine steps must converge to within 0.5px — guards against future regression to framerate-dependent math
+- All 74 GUT tests passing
+
 ## 2026-04-09
 - Merged PR #1: multiplayer foundation (step 1 done)
 - Headless WebSocket server, 20Hz authoritative tick, delta-compressed snapshots, rate limiting, player cap

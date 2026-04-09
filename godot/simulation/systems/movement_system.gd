@@ -31,6 +31,6 @@ func process_inputs_for_player(player_id: int, inputs: Array) -> void:
 			player.last_processed_input_seq = input["input_seq"]
 
 
-func tick_all() -> void:
+func advance_all(dt: float) -> void:
 	for player_id in _players:
-		_players[player_id].tick()
+		_players[player_id].advance(dt)

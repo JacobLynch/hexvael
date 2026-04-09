@@ -1,10 +1,14 @@
 class_name PlayerEntity
 extends CharacterBody2D
 
-const SPEED: float = 200.0
-
 var player_id: int = -1
 var last_processed_input_seq: int = 0
+
+# Movement state
+var params: MovementParams = preload("res://shared/movement/default_movement_params.tres")
+var move_input: Vector2 = Vector2.ZERO       # latest WASD direction (raw, not normalized)
+var aim_direction: Vector2 = Vector2.RIGHT   # latest aim unit vector (used later)
+var state: int = PlayerMovementState.WALKING
 
 
 func initialize(id: int, spawn_position: Vector2) -> void:
@@ -12,26 +16,63 @@ func initialize(id: int, spawn_position: Vector2) -> void:
 	position = spawn_position
 
 
+# Ingest: called by MovementSystem when dequeuing inputs.
+# In Task 3 this signature expands to apply_input(Dictionary). For this task
+# it still takes a Vector2 to keep the refactor scoped.
 func apply_input(direction: Vector2) -> void:
-	if direction.length_squared() > 0.0:
-		velocity = direction.normalized() * SPEED
-	else:
-		velocity = Vector2.ZERO
+	move_input = direction
 
 
-func tick() -> void:
-	move_delta(MessageTypes.TICK_INTERVAL_MS / 1000.0)
+# Canonical movement step. Called by:
+#   - Server tick  -> advance(TICK_INTERVAL)
+#   - Client prediction (per display frame) -> advance(frame_delta)
+#   - Client reconciliation replay -> advance(TICK_INTERVAL) once per pending input
+# MUST be dt-independent — same result regardless of how dt is chunked.
+func advance(dt: float) -> void:
+	# Capture pre-step velocity for midpoint position integration (dt-independent).
+	var v_old: Vector2 = velocity
 
+	# Compute target velocity from input + state
+	match state:
+		PlayerMovementState.WALKING:
+			if move_input.length_squared() > 0.001:
+				var target = move_input.normalized() * params.top_speed
+				velocity = velocity.move_toward(target, params.accel * dt)
+			else:
+				# Exponential decay — dt-independent, framerate-independent
+				velocity *= exp(-params.friction * dt)
+				if velocity.length_squared() < 0.01:
+					velocity = Vector2.ZERO
+		# DODGING state handled in Task 4
 
-func move_delta(delta: float) -> void:
-	var motion: Vector2 = velocity * delta
+	# Midpoint integration: average pre- and post-step velocity for position.
+	# This ensures position is dt-independent during the accel ramp, not just at
+	# steady state. Using velocity * dt (Euler forward) diverges between coarse
+	# and fine steps because the velocity changes over the interval.
+	var motion: Vector2 = (v_old + velocity) / 2.0 * dt
 	var collision = move_and_collide(motion)
 	if collision:
 		var remainder = collision.get_remainder()
 		move_and_collide(remainder.slide(collision.get_normal()))
+		EventBus.player_collided.emit({
+			"entity_id": player_id,
+			"position": position,
+			"normal": collision.get_normal(),
+			"velocity": velocity,
+		})
+
+	# Movement event (gated to avoid idle spam)
+	if velocity.length_squared() > 1.0:
+		EventBus.player_moved.emit({
+			"entity_id": player_id,
+			"position": position,
+			"velocity": velocity,
+		})
 
 
 func to_snapshot_data() -> Dictionary:
+	# NOTE: Task 5 extends this with velocity, aim_direction, state, dodge_time_remaining.
+	# This task only renames fields; the snapshot binary format is unchanged.
 	var flags = MessageTypes.EntityFlags.NONE
 	if velocity.length_squared() > 0.0:
 		flags = MessageTypes.EntityFlags.MOVING

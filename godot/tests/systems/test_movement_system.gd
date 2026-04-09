@@ -21,7 +21,7 @@ func test_process_inputs_applies_direction():
 		{"input_seq": 1, "direction": Vector2(1.0, 0.0), "tick": 10},
 	]
 	_system.process_inputs_for_player(1, inputs)
-	assert_eq(_player.velocity, Vector2(PlayerEntity.SPEED, 0.0))
+	assert_eq(_player.move_input, Vector2(1.0, 0.0))
 
 
 func test_process_multiple_inputs_applies_last():
@@ -30,22 +30,24 @@ func test_process_multiple_inputs_applies_last():
 		{"input_seq": 2, "direction": Vector2(0.0, -1.0), "tick": 10},
 	]
 	_system.process_inputs_for_player(1, inputs)
-	# After processing both, velocity should reflect the last input
-	assert_eq(_player.velocity, Vector2(0.0, -PlayerEntity.SPEED))
+	# After processing both, move_input should reflect the last input
+	assert_eq(_player.move_input, Vector2(0.0, -1.0))
 
 
 func test_process_empty_inputs_keeps_last_velocity():
 	_player.apply_input(Vector2(1.0, 0.0))
 	_system.process_inputs_for_player(1, [])
-	assert_eq(_player.velocity, Vector2(PlayerEntity.SPEED, 0.0))
+	assert_eq(_player.move_input, Vector2(1.0, 0.0))
 
 
-func test_tick_all_calls_move_and_slide():
+func test_advance_all_moves_players():
 	_player.apply_input(Vector2(1.0, 0.0))
 	var pos_before = _player.position
-	_system.tick_all()
-	# After move_and_slide, position should have changed (no collision in test)
-	assert_ne(_player.position, pos_before, "Position should change after tick")
+	var tick_dt = MessageTypes.TICK_INTERVAL_MS / 1000.0
+	# Accel needs a few ticks to build up movement
+	for i in range(3):
+		_system.advance_all(tick_dt)
+	assert_ne(_player.position, pos_before, "Position should change after advance_all")
 
 
 func test_register_and_unregister_player():

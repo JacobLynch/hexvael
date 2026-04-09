@@ -256,7 +256,8 @@ func _server_tick():
 		_movement_system.process_inputs_for_player(player_id, inputs)
 
 	# Phase 3: Tick physics
-	_movement_system.tick_all()
+	var tick_dt = MessageTypes.TICK_INTERVAL_MS / 1000.0
+	_movement_system.advance_all(tick_dt)
 
 	# Phase 4-5: Build and send snapshots
 	var current_snap = _build_current_snapshot()
