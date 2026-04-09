@@ -1,36 +1,9 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://server_main.gd" id="1"]
-
-[sub_resource type="RectangleShape2D" id="top_wall"]
-size = Vector2(480, 8)
-
-[sub_resource type="RectangleShape2D" id="bottom_wall"]
-size = Vector2(480, 8)
-
-[sub_resource type="RectangleShape2D" id="left_wall"]
-size = Vector2(8, 320)
-
-[sub_resource type="RectangleShape2D" id="right_wall"]
-size = Vector2(8, 320)
+[ext_resource type="PackedScene" path="res://shared/world/arena.tscn" id="2"]
 
 [node name="ServerMain" type="Node"]
 script = ExtResource("1")
 
-[node name="Walls" type="StaticBody2D" parent="."]
-
-[node name="TopWall" type="CollisionShape2D" parent="Walls"]
-position = Vector2(240, -4)
-shape = SubResource("top_wall")
-
-[node name="BottomWall" type="CollisionShape2D" parent="Walls"]
-position = Vector2(240, 324)
-shape = SubResource("bottom_wall")
-
-[node name="LeftWall" type="CollisionShape2D" parent="Walls"]
-position = Vector2(-4, 160)
-shape = SubResource("left_wall")
-
-[node name="RightWall" type="CollisionShape2D" parent="Walls"]
-position = Vector2(484, 160)
-shape = SubResource("right_wall")
+[node name="Arena" parent="." instance=ExtResource("2")]

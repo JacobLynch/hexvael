@@ -90,9 +90,11 @@ Every trigger must check `chain_depth` before firing, increment it when firing, 
 
 Every system must run without a display. If it doesn't, it's in the wrong layer.
 
-### Server and client worlds must stay in sync
+### One world scene, used by both server and client
 
-The server and client both need the same collision geometry for client-side prediction to work. If the client is missing collision that the server has, prediction diverges and the player rubber-bands. Shared world geometry (walls, obstacles, terrain collision) must live in a shared scene (e.g. `arena_walls.tscn`) instanced by both `server.tscn` and `client.tscn`. Never define collision in only one scene.
+World geometry (collision, terrain, obstacles) lives in a single shared scene (e.g. `shared/world/arena.tscn`) instanced by both `server.tscn` and `client.tscn`. Visuals and collision live together in that scene — the headless server simply never renders the visual nodes.
+
+This guarantees sync by construction. Never define collision or world layout separately per side — if the client is missing collision the server has, prediction diverges and the player rubber-bands.
 
 ---
 

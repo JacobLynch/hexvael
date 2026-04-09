@@ -6,16 +6,6 @@ var _player_views: Dictionary = {}  # player_id -> PlayerView node
 var _net_client: NetClient = null
 
 
-# Arena dimensions (must match server collision walls)
-const ARENA_WIDTH: float = 480.0
-const ARENA_HEIGHT: float = 320.0
-const WALL_THICKNESS: float = 4.0
-
-
-func _ready():
-	_build_arena_visual()
-
-
 func initialize(net_client: NetClient) -> void:
 	_net_client = net_client
 	_net_client.connected.connect(_on_connected)
@@ -89,32 +79,3 @@ func _remove_player_view(player_id: int):
 	if _player_views.has(player_id):
 		_player_views[player_id].queue_free()
 		_player_views.erase(player_id)
-
-
-func _build_arena_visual():
-	var floor_color = Color(0.12, 0.11, 0.14)  # Dark stone floor
-	var wall_color = Color(0.25, 0.22, 0.28)    # Slightly lighter walls
-
-	# Floor
-	var floor_rect = ColorRect.new()
-	floor_rect.color = floor_color
-	floor_rect.position = Vector2.ZERO
-	floor_rect.size = Vector2(ARENA_WIDTH, ARENA_HEIGHT)
-	floor_rect.z_index = -10
-	add_child(floor_rect)
-
-	# Walls (visual only — collision is on the server)
-	var w = WALL_THICKNESS
-	_add_wall(wall_color, Vector2(0, -w), Vector2(ARENA_WIDTH, w))          # Top
-	_add_wall(wall_color, Vector2(0, ARENA_HEIGHT), Vector2(ARENA_WIDTH, w)) # Bottom
-	_add_wall(wall_color, Vector2(-w, -w), Vector2(w, ARENA_HEIGHT + w * 2)) # Left
-	_add_wall(wall_color, Vector2(ARENA_WIDTH, -w), Vector2(w, ARENA_HEIGHT + w * 2)) # Right
-
-
-func _add_wall(color: Color, pos: Vector2, size: Vector2):
-	var wall = ColorRect.new()
-	wall.color = color
-	wall.position = pos
-	wall.size = size
-	wall.z_index = -9
-	add_child(wall)
