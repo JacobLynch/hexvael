@@ -9,6 +9,9 @@ var _camera_rig: CameraRig
 # Tracks whether each remote entity was dodging last frame so we can emit
 # player_dodge_started / player_dodge_ended only on state *transitions*.
 var _prev_remote_dodge_state: Dictionary = {}  # entity_id -> bool
+# Tracks the last seen collision_count per remote entity so we can detect
+# momentary wall-collision events and emit synthetic player_collided signals.
+var _prev_remote_collision_count: Dictionary = {}  # entity_id -> int
 
 
 func initialize(net_client: NetClient) -> void:
@@ -134,6 +137,23 @@ func _process(delta: float):
 					})
 				_prev_remote_dodge_state[player_id] = is_dodging
 
+				# Synthesize player_collided for remote wall bumps.
+				# collision_count is a u8 that increments on every collision — detect
+				# any change (not just > to handle wrap-around at 256).
+				var collision_count: int = ent.get("collision_count", 0)
+				# Default to current count on first sight so we don't fire on the
+				# very first snapshot for a newly joined remote player.
+				var prev_count: int = _prev_remote_collision_count.get(player_id, collision_count)
+				if collision_count != prev_count:
+					var collision_normal: Vector2 = ent.get("last_collision_normal", Vector2.ZERO)
+					EventBus.player_collided.emit({
+						"entity_id": player_id,
+						"position": view.position,
+						"normal": collision_normal,
+						"velocity": vel,
+					})
+				_prev_remote_collision_count[player_id] = collision_count
+
 		view.update_visual_state(aim, state, vel_mag, delta)
 
 
@@ -151,6 +171,7 @@ func _remove_player_view(player_id: int):
 		_player_views[player_id].queue_free()
 		_player_views.erase(player_id)
 	_prev_remote_dodge_state.erase(player_id)
+	_prev_remote_collision_count.erase(player_id)
 
 
 func _on_any_dodge_started(event: Dictionary):

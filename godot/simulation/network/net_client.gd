@@ -228,6 +228,8 @@ func _reconcile_local_player(snap: Snapshot):
 	_local_player.aim_direction = server_data.get("aim_direction", Vector2.RIGHT)
 	_local_player.state = server_data.get("state", 0)
 	_local_player.dodge_time_remaining = server_data.get("dodge_time_remaining", 0.0)
+	_local_player.collision_count = server_data.get("collision_count", 0)
+	_local_player.last_collision_normal = server_data.get("last_collision_normal", Vector2.ZERO)
 	# dodge_cooldown_remaining is not in the snapshot; if the server says we're
 	# past a dodge, cooldown is implicit in server state. Leave local cooldown.
 	# If currently dodging, derive dodge_direction from velocity so the next

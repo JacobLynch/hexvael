@@ -13,6 +13,8 @@ func _make_entity(id: int, x: float, y: float, flags: int = 0, last_input_seq: i
 		"aim_direction": Vector2.RIGHT,
 		"state": 0,
 		"dodge_time_remaining": 0.0,
+		"collision_count": 0,
+		"last_collision_normal": Vector2.ZERO,
 	}
 
 
@@ -125,7 +127,7 @@ func test_apply_delta_removes_entity():
 	snap.entities = {
 		1: _make_entity(1, 100.0, 200.0),
 	}
-	var delta_entities = [{"entity_id": 1, "position": Vector2.ZERO, "flags": MessageTypes.EntityFlags.REMOVED, "last_input_seq": 0, "velocity": Vector2.ZERO, "aim_direction": Vector2.RIGHT, "state": 0, "dodge_time_remaining": 0.0}]
+	var delta_entities = [{"entity_id": 1, "position": Vector2.ZERO, "flags": MessageTypes.EntityFlags.REMOVED, "last_input_seq": 0, "velocity": Vector2.ZERO, "aim_direction": Vector2.RIGHT, "state": 0, "dodge_time_remaining": 0.0, "collision_count": 0, "last_collision_normal": Vector2.ZERO}]
 	snap.apply_delta(11, delta_entities)
 	assert_false(snap.entities.has(1))
 
@@ -163,6 +165,8 @@ func test_diff_detects_velocity_change():
 		"aim_direction": Vector2.RIGHT,
 		"state": 0,
 		"dodge_time_remaining": 0.0,
+		"collision_count": 0,
+		"last_collision_normal": Vector2.ZERO,
 	}
 	var current = Snapshot.new()
 	current.entities[1] = baseline.entities[1].duplicate()
@@ -182,6 +186,8 @@ func test_diff_detects_dodge_state_change():
 		"aim_direction": Vector2.RIGHT,
 		"state": 0,
 		"dodge_time_remaining": 0.0,
+		"collision_count": 0,
+		"last_collision_normal": Vector2.ZERO,
 	}
 	var current = Snapshot.new()
 	current.entities[1] = baseline.entities[1].duplicate()
@@ -189,3 +195,18 @@ func test_diff_detects_dodge_state_change():
 	current.entities[1]["dodge_time_remaining"] = 0.2
 	var delta = Snapshot.diff(baseline, current)
 	assert_eq(delta.size(), 1)
+
+
+func test_diff_detects_collision_count_change():
+	# Verifies that a wall collision (collision_count increment) triggers a diff entry
+	# so the wire format carries the event to the receiving client.
+	var baseline = Snapshot.new()
+	baseline.entities[1] = _make_entity(1, 100.0, 100.0)
+	var current = Snapshot.new()
+	current.entities[1] = baseline.entities[1].duplicate()
+	current.entities[1]["collision_count"] = 1
+	current.entities[1]["last_collision_normal"] = Vector2(-1.0, 0.0)
+	var delta = Snapshot.diff(baseline, current)
+	assert_eq(delta.size(), 1, "collision_count change must appear in delta")
+	assert_eq(delta[0]["collision_count"], 1)
+	assert_almost_eq(delta[0]["last_collision_normal"].x, -1.0, 0.001)

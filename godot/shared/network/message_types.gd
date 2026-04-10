@@ -28,8 +28,9 @@ class Layout:
 	const SNAPSHOT_HEADER_SIZE = 7
 	# Per-entity: [entity_id:u16][x:f32][y:f32][flags:u8][last_input_seq:u32]
 	#             [vx:f32][vy:f32][aim_x:f32][aim_y:f32][state:u8]
-	#             [dodge_time_remaining:f32]
-	const ENTITY_SIZE = 36
+	#             [dodge_time_remaining:f32][collision_count:u8]
+	#             [last_collision_normal_x:f32][last_collision_normal_y:f32]
+	const ENTITY_SIZE = 45
 	# Player input: [msg_type:u8][tick:u32][move_x:f32][move_y:f32]
 	#               [aim_x:f32][aim_y:f32][dodge_pressed:u8][input_seq:u32]
 	const INPUT_SIZE = 26

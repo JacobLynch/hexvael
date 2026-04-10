@@ -121,6 +121,10 @@ static func _encode_snapshot(msg: Dictionary) -> PackedByteArray:
 		buf.encode_float(offset + 27, aim.y)
 		buf.encode_u8(offset + 31, ent.get("state", 0))
 		buf.encode_float(offset + 32, ent.get("dodge_time_remaining", 0.0))
+		buf.encode_u8(offset + 36, ent.get("collision_count", 0))
+		var cnorm: Vector2 = ent.get("last_collision_normal", Vector2.ZERO)
+		buf.encode_float(offset + 37, cnorm.x)
+		buf.encode_float(offset + 41, cnorm.y)
 	return buf
 
 
@@ -144,6 +148,8 @@ static func _decode_snapshot(bytes: PackedByteArray, type: int) -> Variant:
 			"aim_direction": Vector2(bytes.decode_float(offset + 23), bytes.decode_float(offset + 27)),
 			"state": bytes.decode_u8(offset + 31),
 			"dodge_time_remaining": bytes.decode_float(offset + 32),
+			"collision_count": bytes.decode_u8(offset + 36),
+			"last_collision_normal": Vector2(bytes.decode_float(offset + 37), bytes.decode_float(offset + 41)),
 		})
 	return {
 		"type": type,

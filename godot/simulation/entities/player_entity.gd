@@ -15,6 +15,12 @@ var dodge_direction: Vector2 = Vector2.ZERO
 var dodge_time_remaining: float = 0.0
 var dodge_cooldown_remaining: float = 0.0
 
+# Collision tracking (for remote-player wall bump synthesis)
+# Increments on every wall collision and wraps at 256 (u8).
+# Clients detect counter changes in the snapshot to fire synthetic player_collided events.
+var collision_count: int = 0
+var last_collision_normal: Vector2 = Vector2.ZERO
+
 # When true, advance() and start_dodge() skip EventBus emissions.
 # Used by NetClient reconciliation replay so view-side juice doesn't
 # re-fire for every replayed input.
@@ -131,11 +137,15 @@ func advance(dt: float) -> void:
 	if collision:
 		var remainder = collision.get_remainder()
 		move_and_collide(remainder.slide(collision.get_normal()))
+		# Always update counter and normal — even during reconciliation replay
+		# (_suppress_events true) — so client and server stay in sync on the counter.
+		collision_count = (collision_count + 1) % 256
+		last_collision_normal = collision.get_normal()
 		if not _suppress_events:
 			EventBus.player_collided.emit({
 				"entity_id": player_id,
 				"position": position,
-				"normal": collision.get_normal(),
+				"normal": last_collision_normal,
 				"velocity": velocity,
 			})
 
@@ -164,4 +174,6 @@ func to_snapshot_data() -> Dictionary:
 		"aim_direction": aim_direction,
 		"state": state,
 		"dodge_time_remaining": dodge_time_remaining,
+		"collision_count": collision_count,
+		"last_collision_normal": last_collision_normal,
 	}

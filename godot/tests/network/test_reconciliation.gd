@@ -171,6 +171,8 @@ func test_netclient_reconcile_converges_to_server_state():
 		"aim_direction": server.aim_direction,
 		"state": server.state,
 		"dodge_time_remaining": server.dodge_time_remaining,
+		"collision_count": server.collision_count,
+		"last_collision_normal": server.last_collision_normal,
 	}
 
 	# Reconcile: client rewinds to server state, replays inputs 3, 4, 5

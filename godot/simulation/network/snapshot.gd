@@ -33,6 +33,8 @@ static func diff(baseline: Snapshot, current: Snapshot) -> Array:
 				changed = true
 			elif abs(base_ent.get("dodge_time_remaining", 0.0) - curr_ent.get("dodge_time_remaining", 0.0)) > 0.001:
 				changed = true
+			elif base_ent.get("collision_count", 0) != curr_ent.get("collision_count", 0):
+				changed = true
 			if changed:
 				changes.append(curr_ent.duplicate())
 
@@ -48,6 +50,8 @@ static func diff(baseline: Snapshot, current: Snapshot) -> Array:
 				"aim_direction": Vector2.RIGHT,
 				"state": 0,
 				"dodge_time_remaining": 0.0,
+				"collision_count": 0,
+				"last_collision_normal": Vector2.ZERO,
 			})
 
 	return changes

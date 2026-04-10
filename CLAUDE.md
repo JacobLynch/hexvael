@@ -123,6 +123,29 @@ Prediction on the client and authoritative simulation on the server must call th
 
 Rule of thumb: if a movement, combat, or physics behavior appears anywhere on the client, it must be calling the same `/simulation` code the server runs. View code reads state and renders it; it never re-implements simulation.
 
+### View effects must work for both local and remote entities
+
+Simulation events (`player_moved`, `player_collided`, `player_dodge_started`, etc.) only emit on the client that runs the sim. For the local player that's every client (via prediction); for remote players it's only the server — which has no view. View-side effect listeners (particles, trails, screen shake) must therefore work for **all** entities, not just the local player.
+
+For each effect, ask: *"does this event fire for remote players on this client?"* If not, fix it one of three ways in `WorldView._process`:
+
+1. **State diff** — for persistent state (e.g. DODGING). Track previous state per entity; emit synthetic event only on the frame of transition.
+2. **Snapshot-driven synthesis** — for continuous values (e.g. velocity → footstep dust). Read the field from the snapshot dict each frame and emit if above threshold.
+3. **Counter + auxiliary field in snapshot** — for momentary events (e.g. wall collision). The server increments a u8 counter in the entity snapshot and stores the event's side data (normal, etc.). `WorldView` detects any change in the counter and emits a synthetic event with the side data.
+
+```gdscript
+# Pattern 3 — momentary event detection (WorldView._process remote branch)
+var collision_count: int = ent.get("collision_count", 0)
+var prev_count: int = _prev_remote_collision_count.get(player_id, collision_count)
+if collision_count != prev_count:
+    EventBus.player_collided.emit({ "entity_id": player_id, ... })
+_prev_remote_collision_count[player_id] = collision_count
+```
+
+The local player's `PlayerEntity.advance()` emits its own events naturally — don't also synthesize for the local entity (skip the synthesis branch when `player_id == _net_client.get_local_player_id()`).
+
+Counter fields increment even when `_suppress_events` is true (during reconciliation replay) so client and server stay in sync. Never gate the counter increment on `_suppress_events`.
+
 ---
 
 ## What Not To Build
