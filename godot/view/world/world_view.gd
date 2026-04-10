@@ -2,8 +2,11 @@ extends Node2D
 
 var PlayerViewScene: PackedScene = preload("res://view/world/player_view.tscn")
 var CameraRigScene: PackedScene = preload("res://view/world/camera_rig.tscn")
+var EnemyViewScene: PackedScene = preload("res://view/world/enemy_view.tscn")
+var EnemyDeathEffect = preload("res://view/effects/enemy_death_effect.gd")
 
 var _player_views: Dictionary = {}  # player_id -> PlayerView node
+var _enemy_views: Dictionary = {}  # entity_id -> EnemyView node
 var _net_client: NetClient = null
 var _camera_rig: CameraRig
 # Tracks whether each remote entity was dodging last frame so we can emit
@@ -21,6 +24,7 @@ func initialize(net_client: NetClient) -> void:
 	_net_client.player_joined.connect(_on_player_joined)
 	_net_client.player_left.connect(_on_player_left)
 	_net_client.snapshot_received.connect(_on_snapshot)
+	_net_client.enemy_died_received.connect(_on_enemy_died)
 	_camera_rig = CameraRigScene.instantiate()
 	add_child(_camera_rig)
 	_camera_rig.initialize(_net_client)
@@ -49,6 +53,9 @@ func _on_disconnected():
 	for view in _player_views.values():
 		view.queue_free()
 	_player_views.clear()
+	for view in _enemy_views.values():
+		view.queue_free()
+	_enemy_views.clear()
 
 
 func _on_player_joined(player_id: int, spawn_position: Vector2):
@@ -156,6 +163,25 @@ func _process(delta: float):
 
 		view.update_visual_state(aim, state, vel_mag, delta)
 
+	# Enemy views
+	var current_enemy_ids = _net_client.get_enemy_ids()
+
+	# Create views for new enemies
+	for eid in current_enemy_ids:
+		if not _enemy_views.has(eid):
+			var data = _net_client.get_interpolated_enemy(eid)
+			if data != null:
+				_add_enemy_view(eid, data["position"])
+
+	# Update existing views and remove stale ones
+	for eid in _enemy_views.keys():
+		if eid not in current_enemy_ids:
+			_remove_enemy_view(eid)
+		else:
+			var data = _net_client.get_interpolated_enemy(eid)
+			if data != null:
+				_enemy_views[eid].update_from_data(data)
+
 
 func _add_player_view(player_id: int, pos: Vector2, is_local: bool):
 	if _player_views.has(player_id):
@@ -172,6 +198,29 @@ func _remove_player_view(player_id: int):
 		_player_views.erase(player_id)
 	_prev_remote_dodge_state.erase(player_id)
 	_prev_remote_collision_count.erase(player_id)
+
+
+func _add_enemy_view(entity_id: int, pos: Vector2) -> void:
+	if _enemy_views.has(entity_id):
+		return
+	var view = EnemyViewScene.instantiate()
+	add_child(view)
+	view.initialize(entity_id, pos)
+	_enemy_views[entity_id] = view
+
+
+func _remove_enemy_view(entity_id: int) -> void:
+	if _enemy_views.has(entity_id):
+		_enemy_views[entity_id].queue_free()
+		_enemy_views.erase(entity_id)
+
+
+func _on_enemy_died(event: Dictionary) -> void:
+	var effect = Node2D.new()
+	effect.set_script(EnemyDeathEffect)
+	effect.position = event["position"]
+	add_child(effect)
+	_remove_enemy_view(event["entity_id"])
 
 
 func _on_any_dodge_started(event: Dictionary):
