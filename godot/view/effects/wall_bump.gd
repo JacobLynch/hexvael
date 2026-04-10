@@ -25,7 +25,7 @@ func _on_collided(event: Dictionary):
 	# Remote players don't run sim locally today, but this guard prevents
 	# incorrect shaking if that ever changes.
 	if _camera_rig != null and _net_client != null and event["entity_id"] == _net_client.get_local_player_id():
-		_camera_rig.add_shake(1.5, 0.08)
+		_camera_rig.add_shake(5.0, 0.15)
 
 
 func _spawn_burst(pos: Vector2, normal: Vector2) -> void:

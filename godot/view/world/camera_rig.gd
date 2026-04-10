@@ -9,7 +9,7 @@ extends Camera2D
 @export var lookahead_max: float = 50.0   # max world-pixel offset toward mouse cursor
 @export var lookahead_ramp: float = 180.0 # mouse-player world distance at which lookahead reaches max
 @export var follow_smoothing: float = 8.0
-@export var shake_decay: float = 20.0  # exp coeff for shake decay
+@export var shake_decay: float = 12.0  # exp coeff for shake decay (~150ms half-life)
 
 var _net_client: NetClient
 var _target_position: Vector2 = Vector2.ZERO

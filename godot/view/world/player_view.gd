@@ -55,9 +55,12 @@ func update_visual_state(aim_dir: Vector2, state: int, velocity_magnitude: float
 	else:
 		_visual.color = _base_color
 
-	# Walk pulse — subtle stretch while moving, rest at 1.0 while idle
-	var target_scale = Vector2(1.03, 0.97) if velocity_magnitude > 1.0 else Vector2.ONE
-	_visual.scale = _visual.scale.lerp(target_scale, 1.0 - exp(-10.0 * delta))
+	# Walk pulse — stretch the whole player node while moving, rest at 1.0 while idle.
+	# Scale self (the Node2D) rather than _visual (the ColorRect) so the facing line
+	# also breathes with the body, and because ColorRect.scale is less reliable than
+	# Node2D.scale for visual transforms.
+	var target_scale = Vector2(1.12, 0.92) if velocity_magnitude > 1.0 else Vector2.ONE
+	self.scale = self.scale.lerp(target_scale, 1.0 - exp(-10.0 * delta))
 
 
 func _process(_delta: float):

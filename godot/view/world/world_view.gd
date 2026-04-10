@@ -6,6 +6,9 @@ var CameraRigScene: PackedScene = preload("res://view/world/camera_rig.tscn")
 var _player_views: Dictionary = {}  # player_id -> PlayerView node
 var _net_client: NetClient = null
 var _camera_rig: CameraRig
+# Tracks whether each remote entity was dodging last frame so we can emit
+# player_dodge_started / player_dodge_ended only on state *transitions*.
+var _prev_remote_dodge_state: Dictionary = {}  # entity_id -> bool
 
 
 func initialize(net_client: NetClient) -> void:
@@ -102,7 +105,34 @@ func _process(delta: float):
 			if ent != null:
 				aim = ent.get("aim_direction", Vector2.RIGHT)
 				state = ent.get("state", 0)
-				vel_mag = ent.get("velocity", Vector2.ZERO).length()
+				var vel: Vector2 = ent.get("velocity", Vector2.ZERO)
+				vel_mag = vel.length()
+				# Synthesize player_moved so FootstepDust fires for remote players.
+				# The local player's player_moved comes from PlayerEntity.advance().
+				if vel_mag > 1.0:
+					EventBus.player_moved.emit({
+						"entity_id": player_id,
+						"position": view.position,
+						"velocity": vel,
+					})
+				# Synthesize player_dodge_started/ended on state transitions only,
+				# not every frame, so DodgeTrail doesn't get duplicate spawns.
+				const DODGING = 1  # PlayerMovementState.DODGING
+				var was_dodging: bool = _prev_remote_dodge_state.get(player_id, false)
+				var is_dodging: bool = (state == DODGING)
+				if is_dodging and not was_dodging:
+					EventBus.player_dodge_started.emit({
+						"entity_id": player_id,
+						"position": view.position,
+						"direction": aim,
+					})
+				elif was_dodging and not is_dodging:
+					EventBus.player_dodge_ended.emit({
+						"entity_id": player_id,
+						"position": view.position,
+						"direction": aim,
+					})
+				_prev_remote_dodge_state[player_id] = is_dodging
 
 		view.update_visual_state(aim, state, vel_mag, delta)
 
@@ -120,6 +150,7 @@ func _remove_player_view(player_id: int):
 	if _player_views.has(player_id):
 		_player_views[player_id].queue_free()
 		_player_views.erase(player_id)
+	_prev_remote_dodge_state.erase(player_id)
 
 
 func _on_any_dodge_started(event: Dictionary):
@@ -128,7 +159,7 @@ func _on_any_dodge_started(event: Dictionary):
 		return
 	if event["entity_id"] == _net_client.get_local_player_id():
 		if _camera_rig != null:
-			_camera_rig.add_shake(1.0, 0.05)
+			_camera_rig.add_shake(3.0, 0.1)
 
 
 func _exit_tree():
