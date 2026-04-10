@@ -1,6 +1,20 @@
 # Devlog
 
-## 2026-04-10
+## 2026-04-10 (session 2)
+- Enemy spawning & AI (step 2b, enemy half) on feature/enemy-spawning-ai branch
+- EnemyEntity: CharacterBody2D with 4-state machine (SPAWNING→IDLE→CHASING→DEAD), dt-independent steering, sticky aggro with hysteresis
+- Steering behaviors: seek toward target, separation via spatial grid (O(n) Dictionary-based hash), exponential turn rate lerp, arrival deceleration near melee range
+- Idle wander: enemies drift toward random nearby points when no player in detection_radius, transition to CHASING on detection
+- EnemySpawner: configurable timer/batch/max_alive, edge-biased spawn points with minimum distance from players
+- SpatialGrid: pure data structure for neighbor lookups, rebuilt each tick, also exposes query_radius for future AoE
+- Network: snapshot format extended with 17-byte enemy section (position, state, facing via f16, spawn_timer via f16), backward-compatible; 13-byte binary ENEMY_DIED event
+- Client: two-snapshot interpolation for enemies (same as remote players), enemy collision proxies (StaticBody2D on layer 3), player collision mask updated to include enemies
+- View layer: EnemyView (sickly green square, facing indicator line, idle wobble, spawn telegraph fade-in, spawn pop tween), death flash effect
+- Player collision_mask updated to 5 (layers 1+3) so players body-block enemies and vice versa
+- 116 GUT tests total (39 new: spatial grid, enemy entity, steering, aggro, enemy system, spawner, network encoding)
+- Next session: merge and start combat feel (frost bolt, damage, health)
+
+## 2026-04-10 (session 1)
 - Merged PR #2: step 2 movement feel
 - Single canonical `PlayerEntity.advance(dt)` shared by client prediction, server authority, and reconciliation replay — midpoint integration for dt-independence
 - Dedicated dodge with i-frames, 200ms duration, 700ms cooldown, Hades-pattern direction (input dir or aim fallback), impulse semantics
