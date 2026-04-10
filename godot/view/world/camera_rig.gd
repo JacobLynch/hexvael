@@ -2,9 +2,12 @@ class_name CameraRig
 extends Camera2D
 
 @export var zoom_factor: float = 3.0  # higher = more zoomed in (Godot 4 convention)
+@export var min_zoom: float = 1.0
+@export var max_zoom: float = 6.0
+@export var zoom_step: float = 0.25  # how much each scroll wheel tick changes zoom
 @export var deadzone_size: Vector2 = Vector2(40.0, 30.0)
-@export var lookahead_max: float = 80.0
-@export var lookahead_ramp: float = 140.0
+@export var lookahead_max: float = 50.0   # max world-pixel offset toward mouse cursor
+@export var lookahead_ramp: float = 180.0 # mouse-player world distance at which lookahead reaches max
 @export var follow_smoothing: float = 8.0
 @export var shake_decay: float = 20.0  # exp coeff for shake decay
 
@@ -19,6 +22,19 @@ func _ready() -> void:
 	# Force this camera to be the active one. Without this, any other Camera2D
 	# already added to the scene tree (e.g. an editor placeholder) keeps current.
 	make_current()
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed:
+		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
+			_adjust_zoom(zoom_step)
+		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			_adjust_zoom(-zoom_step)
+
+
+func _adjust_zoom(delta: float) -> void:
+	zoom_factor = clampf(zoom_factor + delta, min_zoom, max_zoom)
+	zoom = Vector2(zoom_factor, zoom_factor)
 
 
 func initialize(net_client: NetClient) -> void:
