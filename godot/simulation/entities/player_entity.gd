@@ -119,6 +119,7 @@ func advance(dt: float) -> void:
 					EventBus.player_dodge_ended.emit({
 						"entity_id": player_id,
 						"position": position,
+						"direction": dodge_direction,
 					})
 
 	# Midpoint integration: average pre- and post-step velocity for position.

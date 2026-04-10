@@ -186,3 +186,4 @@ func test_dodge_ended_emits_event_with_position():
 	var event = params_list[0]
 	assert_eq(event["entity_id"], p.player_id)
 	assert_true(event.has("position"), "player_dodge_ended payload must include position")
+	assert_true(event.has("direction"), "player_dodge_ended payload must include direction")

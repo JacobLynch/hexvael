@@ -15,26 +15,19 @@ func _init(viewport: Viewport) -> void:
 func poll(player_world_position: Vector2) -> void:
 	move_direction = Input.get_vector("move_left", "move_right", "move_up", "move_down")
 
-	# Aim direction: unit vector from player to mouse (in world coords)
-	# Use camera's global mouse position if a camera exists; otherwise fall back
-	# to viewport mouse position (which is in screen coords, not world).
-	var mouse_world: Vector2
 	var cam = _viewport.get_camera_2d()
-	if cam != null:
-		mouse_world = cam.get_global_mouse_position()
+	if cam == null:
+		# No camera — can't compute world-space mouse. Keep prior aim_direction.
+		# This should only happen briefly during startup; warn if it persists.
+		push_warning("KeyboardMouseInputProvider.poll: no Camera2D in viewport, aim_direction frozen")
 	else:
-		mouse_world = _viewport.get_mouse_position()
-	var diff = mouse_world - player_world_position
-	if diff.length_squared() > 0.01:
-		aim_direction = diff.normalized()
-	# else keep prior aim_direction
+		var mouse_world = cam.get_global_mouse_position()
+		var diff = mouse_world - player_world_position
+		if diff.length_squared() > 0.01:
+			aim_direction = diff.normalized()
 
 	if Input.is_action_just_pressed("dodge"):
 		_dodge_latched = true
-
-
-func dodge_pressed_this_frame() -> bool:
-	return _dodge_latched
 
 
 func consume_dodge_press() -> bool:

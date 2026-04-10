@@ -36,10 +36,8 @@ func _spawn_puff(pos: Vector2) -> void:
 	particles.scale_amount_min = 1.5
 	particles.scale_amount_max = 2.5
 	particles.color = Color(0.7, 0.7, 0.65, 0.5)
+	particles.finished.connect(particles.queue_free)
 	add_child(particles)
-	# Clean up after lifetime elapses
-	await get_tree().create_timer(particles.lifetime + 0.1).timeout
-	particles.queue_free()
 
 
 func _exit_tree():

@@ -44,9 +44,8 @@ func _spawn_burst(pos: Vector2, normal: Vector2) -> void:
 	particles.scale_amount_min = 1.5
 	particles.scale_amount_max = 3.0
 	particles.color = Color(0.8, 0.75, 0.6, 0.7)
+	particles.finished.connect(particles.queue_free)
 	add_child(particles)
-	await get_tree().create_timer(particles.lifetime + 0.1).timeout
-	particles.queue_free()
 
 
 func _exit_tree():

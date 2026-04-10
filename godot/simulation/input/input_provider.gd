@@ -15,11 +15,6 @@ var aim_direction: Vector2 = Vector2.RIGHT
 func poll(player_world_position: Vector2) -> void:
 	pass
 
-## Returns true if dodge was pressed this frame (non-consuming read).
-## Subclasses override.
-func dodge_pressed_this_frame() -> bool:
-	return false
-
 ## Returns true and CLEARS the latch. Used by the network send layer
 ## to guarantee exactly one dodge input per real button press.
 func consume_dodge_press() -> bool:

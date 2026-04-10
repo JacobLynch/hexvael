@@ -29,10 +29,6 @@ func initialize(net_client: NetClient) -> void:
 	EventBus.player_dodge_started.connect(_on_any_dodge_started)
 
 
-func get_camera_rig() -> CameraRig:
-	return _camera_rig
-
-
 func get_player_view_position(player_id: int) -> Variant:
 	if _player_views.has(player_id):
 		return _player_views[player_id].position
