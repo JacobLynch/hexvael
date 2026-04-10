@@ -255,7 +255,7 @@ func _reconcile_local_player(snap: Snapshot):
 
 func get_interpolated_position(entity_id: int) -> Variant:
 	if entity_id == _local_player_id:
-		return null  # Local player uses prediction, not interpolation
+		return null
 
 	if _snapshot_prev == null or _snapshot_curr == null:
 		return null
@@ -263,16 +263,28 @@ func get_interpolated_position(entity_id: int) -> Variant:
 	if not _snapshot_curr.entities.has(entity_id):
 		return null
 
-	var curr_pos: Vector2 = _snapshot_curr.entities[entity_id]["position"]
+	var curr = _snapshot_curr.entities[entity_id]
+	var curr_pos: Vector2 = curr["position"]
 
 	if not _snapshot_prev.entities.has(entity_id):
-		return curr_pos  # New entity, no interpolation yet
+		return curr_pos
 
-	var prev_pos: Vector2 = _snapshot_prev.entities[entity_id]["position"]
+	var prev = _snapshot_prev.entities[entity_id]
+	var prev_pos: Vector2 = prev["position"]
 
 	var tick_interval = MessageTypes.TICK_INTERVAL_MS / 1000.0
 	var t = clampf(_snapshot_time / tick_interval, 0.0, MAX_REMOTE_INTERP)
-	return prev_pos.lerp(curr_pos, t)
+
+	if t <= 1.0:
+		# Within interpolation window — lerp between snapshots
+		return prev_pos.lerp(curr_pos, t)
+	else:
+		# Extrapolate forward using current snapshot velocity.
+		# Fall back to positional delta as implied velocity when the snapshot
+		# does not carry an explicit velocity field (e.g. in tests or older server builds).
+		var snap_vel: Vector2 = curr.get("velocity", (curr_pos - prev_pos) / tick_interval)
+		var extra_time = (t - 1.0) * tick_interval
+		return curr_pos + snap_vel * extra_time
 
 
 func get_local_player_position() -> Variant:
