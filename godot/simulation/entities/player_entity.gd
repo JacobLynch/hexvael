@@ -43,8 +43,13 @@ func can_dodge() -> bool:
 
 
 func start_dodge() -> void:
+	# Defensive guard — silently no-op if already dodging. All current callers
+	# gate on can_dodge() first, but this prevents subtle state resets if that
+	# contract is ever broken.
+	if state == PlayerMovementState.DODGING:
+		return
 	var dir: Vector2
-	if move_input.length_squared() > 0.01:
+	if move_input.length_squared() > 0.001:
 		dir = move_input.normalized()
 	else:
 		dir = aim_direction
@@ -93,7 +98,10 @@ func advance(dt: float) -> void:
 			dodge_time_remaining -= dt
 			if dodge_time_remaining <= 0.0:
 				state = PlayerMovementState.WALKING
-				EventBus.player_dodge_ended.emit({"entity_id": player_id})
+				EventBus.player_dodge_ended.emit({
+					"entity_id": player_id,
+					"position": position,
+				})
 
 	# Midpoint integration: average pre- and post-step velocity for position.
 	# This ensures position is dt-independent during the accel ramp, not just at

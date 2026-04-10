@@ -96,6 +96,14 @@ func test_dodge_emits_event():
 	watch_signals(EventBus)
 	p.start_dodge()
 	assert_signal_emitted(EventBus, "player_dodge_started")
+	# Verify payload shape
+	var params_list = get_signal_parameters(EventBus, "player_dodge_started", 0)
+	assert_not_null(params_list)
+	var event = params_list[0]
+	assert_eq(event["entity_id"], p.player_id)
+	assert_true(event.has("position"))
+	assert_true(event.has("direction"))
+	assert_eq(event["direction"], Vector2(1.0, 0.0))
 
 
 func test_dodge_respects_walls():
@@ -162,3 +170,19 @@ func test_dodge_first_tick_travels_full_distance():
 
 	assert_almost_eq(dist_move, dist_rest, 0.1,
 		"Dodge first-tick distance must match regardless of prior velocity")
+
+
+func test_dodge_ended_emits_event_with_position():
+	var p = _make_player()
+	p.move_input = Vector2(1.0, 0.0)
+	p.start_dodge()
+	watch_signals(EventBus)  # after start_dodge, so we don't count player_dodge_started
+	# Advance past the dodge duration — should trigger dodge_ended
+	p.advance(_params.dodge_duration + 0.001)
+	assert_signal_emitted(EventBus, "player_dodge_ended")
+	# Verify payload shape — entity_id and position must be present
+	var params_list = get_signal_parameters(EventBus, "player_dodge_ended", 0)
+	assert_not_null(params_list, "player_dodge_ended should have been emitted")
+	var event = params_list[0]
+	assert_eq(event["entity_id"], p.player_id)
+	assert_true(event.has("position"), "player_dodge_ended payload must include position")
