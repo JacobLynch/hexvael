@@ -1,6 +1,7 @@
 extends Node
 
 var _net_client: NetClient
+var _input_provider: InputProvider
 var _world_view: Node2D
 var _connection_ui: CanvasLayer
 var _local_player: PlayerEntity = null
@@ -11,6 +12,7 @@ func _ready():
 	_net_client = $NetClient
 	_world_view = $WorldView
 	_connection_ui = $ConnectionUI
+	_input_provider = KeyboardMouseInputProvider.new(get_viewport())
 
 	_world_view.initialize(_net_client)
 	_connection_ui.connect_requested.connect(_on_connect_requested)
@@ -54,7 +56,14 @@ func _on_connected(player_id: int):
 
 func _process(_delta: float):
 	if _net_client.is_server_connected():
-		_net_client.input_direction = Input.get_vector("move_left", "move_right", "move_up", "move_down")
+		var player_pos = _net_client.get_local_player_position()
+		if player_pos == null:
+			player_pos = Vector2.ZERO
+		_input_provider.poll(player_pos)
+		_net_client.input_direction = _input_provider.move_direction
+		_net_client.aim_direction = _input_provider.aim_direction
+		if _input_provider.consume_dodge_press():
+			_net_client.dodge_pressed_latch = true
 		_update_remote_proxies()
 
 
