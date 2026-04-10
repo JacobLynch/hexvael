@@ -25,7 +25,7 @@ func initialize(net_client: NetClient) -> void:
 	add_child(footstep_dust)
 	var wall_bump = preload("res://view/effects/wall_bump.gd").new()
 	add_child(wall_bump)
-	wall_bump.initialize(_camera_rig)
+	wall_bump.initialize(_camera_rig, _net_client)
 	EventBus.player_dodge_started.connect(_on_any_dodge_started)
 
 

@@ -4,14 +4,16 @@ extends Node2D
 const VELOCITY_THRESHOLD: float = 40.0  # ignore sub-threshold touches
 
 var _camera_rig: CameraRig
+var _net_client: NetClient
 
 
 func _ready():
 	EventBus.player_collided.connect(_on_collided)
 
 
-func initialize(camera_rig: CameraRig) -> void:
+func initialize(camera_rig: CameraRig, net_client: NetClient) -> void:
 	_camera_rig = camera_rig
+	_net_client = net_client
 
 
 func _on_collided(event: Dictionary):
@@ -19,7 +21,10 @@ func _on_collided(event: Dictionary):
 	if vel.length() < VELOCITY_THRESHOLD:
 		return
 	_spawn_burst(event["position"], event["normal"])
-	if _camera_rig != null:
+	# Only shake the local camera for the local player's collisions.
+	# Remote players don't run sim locally today, but this guard prevents
+	# incorrect shaking if that ever changes.
+	if _camera_rig != null and _net_client != null and event["entity_id"] == _net_client.get_local_player_id():
 		_camera_rig.add_shake(1.5, 0.08)
 
 
