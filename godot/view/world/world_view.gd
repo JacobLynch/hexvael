@@ -21,6 +21,8 @@ func initialize(net_client: NetClient) -> void:
 	var dodge_trail = preload("res://view/effects/dodge_trail.gd").new()
 	add_child(dodge_trail)
 	dodge_trail.initialize(self)
+	var footstep_dust = preload("res://view/effects/footstep_dust.gd").new()
+	add_child(footstep_dust)
 
 
 func get_camera_rig() -> CameraRig:
