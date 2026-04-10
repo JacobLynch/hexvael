@@ -25,15 +25,27 @@ func _ready() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	# Mouse wheel and macOS two-finger trackpad scroll both fire as MouseButton wheel events
 	if event is InputEventMouseButton and event.pressed:
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
 			_adjust_zoom(zoom_step)
 		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 			_adjust_zoom(-zoom_step)
+	# macOS trackpad pinch-to-zoom gesture (also Magic Mouse)
+	elif event is InputEventMagnifyGesture:
+		# event.factor > 1.0 means pinching out (zoom in), < 1.0 means pinching in
+		_set_zoom_multiplicative(event.factor)
 
 
 func _adjust_zoom(delta: float) -> void:
 	zoom_factor = clampf(zoom_factor + delta, min_zoom, max_zoom)
+	zoom = Vector2(zoom_factor, zoom_factor)
+
+
+func _set_zoom_multiplicative(factor: float) -> void:
+	# Multiplicative zoom feels natural for pinch — small gestures = small change,
+	# large pinch = larger change. clampf prevents flying out of bounds.
+	zoom_factor = clampf(zoom_factor * factor, min_zoom, max_zoom)
 	zoom = Vector2(zoom_factor, zoom_factor)
 
 
