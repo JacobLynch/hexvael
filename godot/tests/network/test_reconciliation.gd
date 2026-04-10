@@ -5,6 +5,8 @@ extends GutTest
 
 var PlayerEntityScene = preload("res://simulation/entities/player_entity.tscn")
 var ArenaScene = preload("res://shared/world/arena.tscn")
+var NetClientScript = preload("res://simulation/network/net_client.gd")
+var SnapshotScript = preload("res://simulation/network/snapshot.gd")
 const MovementParams = preload("res://shared/movement/movement_params.gd")
 const PlayerMovementState = preload("res://simulation/entities/player_movement_state.gd")
 
@@ -118,3 +120,73 @@ func test_replay_rejects_server_rejected_dodge():
 		"Both sides must agree on state after rejected dodge")
 	assert_eq(server.state, PlayerMovementState.WALKING,
 		"Dodge on cooldown must not transition to DODGING")
+
+
+func test_netclient_reconcile_converges_to_server_state():
+	# Build a scenario where the client predicted forward, then reconciles against
+	# a server snapshot. The post-reconcile position must match what the server sees
+	# after it replays the same remaining inputs.
+	add_child_autofree(ArenaScene.instantiate())
+	var net = NetClientScript.new()
+	add_child_autofree(net)
+
+	# Local player: predicted 5 ticks of rightward movement
+	var local = _make_player(Vector2(240.0, 160.0))
+	local.player_id = 1
+	net._local_player = local
+	net._local_player_id = 1
+
+	# Build 5 pending inputs as the tick-rate send layer would
+	for seq in range(5):
+		var input = {
+			"input_seq": seq + 1,
+			"move_direction": Vector2(1.0, 0.0),
+			"aim_direction": Vector2.RIGHT,
+			"dodge_pressed": false,
+		}
+		net._pending_inputs.append(input)
+		local.apply_input(input)
+		local.advance(TICK_S)
+
+	# Server has only processed inputs 1 and 2 — simulate that ground truth
+	var server = _make_player(Vector2(240.0, 160.0))
+	server.player_id = 1
+	for seq in range(2):
+		server.apply_input({
+			"input_seq": seq + 1,
+			"move_direction": Vector2(1.0, 0.0),
+			"aim_direction": Vector2.RIGHT,
+			"dodge_pressed": false,
+		})
+		server.advance(TICK_S)
+
+	var snap = SnapshotScript.new()
+	snap.tick = 2
+	snap.entities[1] = {
+		"entity_id": 1,
+		"position": server.position,
+		"flags": 0,
+		"last_input_seq": 2,
+		"velocity": server.velocity,
+		"aim_direction": server.aim_direction,
+		"state": server.state,
+		"dodge_time_remaining": server.dodge_time_remaining,
+	}
+
+	# Reconcile: client rewinds to server state, replays inputs 3, 4, 5
+	net._reconcile_local_player(snap)
+
+	# Ground truth: server replays the same inputs 3, 4, 5 from its state
+	for seq in range(3, 6):
+		server.apply_input({
+			"input_seq": seq,
+			"move_direction": Vector2(1.0, 0.0),
+			"aim_direction": Vector2.RIGHT,
+			"dodge_pressed": false,
+		})
+		server.advance(TICK_S)
+
+	assert_almost_eq(local.position.x, server.position.x, 0.5,
+		"After reconcile, client position must match server position")
+	assert_almost_eq(local.velocity.x, server.velocity.x, 0.5,
+		"After reconcile, client velocity must match server velocity")
