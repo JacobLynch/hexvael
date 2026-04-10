@@ -15,6 +15,11 @@ var dodge_direction: Vector2 = Vector2.ZERO
 var dodge_time_remaining: float = 0.0
 var dodge_cooldown_remaining: float = 0.0
 
+# When true, advance() and start_dodge() skip EventBus emissions.
+# Used by NetClient reconciliation replay so view-side juice doesn't
+# re-fire for every replayed input.
+var _suppress_events: bool = false
+
 
 func initialize(id: int, spawn_position: Vector2) -> void:
 	player_id = id
@@ -61,11 +66,12 @@ func start_dodge() -> void:
 	# direction, bypassing prior walking velocity. Without this, midpoint integration
 	# in advance() would blend pre-dodge velocity with dodge velocity on the first tick.
 	velocity = dir * params.dodge_speed
-	EventBus.player_dodge_started.emit({
-		"entity_id": player_id,
-		"position": position,
-		"direction": dir,
-	})
+	if not _suppress_events:
+		EventBus.player_dodge_started.emit({
+			"entity_id": player_id,
+			"position": position,
+			"direction": dir,
+		})
 
 
 # Canonical movement step. Called by:
@@ -98,10 +104,11 @@ func advance(dt: float) -> void:
 			dodge_time_remaining -= dt
 			if dodge_time_remaining <= 0.0:
 				state = PlayerMovementState.WALKING
-				EventBus.player_dodge_ended.emit({
-					"entity_id": player_id,
-					"position": position,
-				})
+				if not _suppress_events:
+					EventBus.player_dodge_ended.emit({
+						"entity_id": player_id,
+						"position": position,
+					})
 
 	# Midpoint integration: average pre- and post-step velocity for position.
 	# This ensures position is dt-independent during the accel ramp, not just at
@@ -112,20 +119,22 @@ func advance(dt: float) -> void:
 	if collision:
 		var remainder = collision.get_remainder()
 		move_and_collide(remainder.slide(collision.get_normal()))
-		EventBus.player_collided.emit({
-			"entity_id": player_id,
-			"position": position,
-			"normal": collision.get_normal(),
-			"velocity": velocity,
-		})
+		if not _suppress_events:
+			EventBus.player_collided.emit({
+				"entity_id": player_id,
+				"position": position,
+				"normal": collision.get_normal(),
+				"velocity": velocity,
+			})
 
 	# Movement event (gated to avoid idle spam)
 	if velocity.length_squared() > 1.0:
-		EventBus.player_moved.emit({
-			"entity_id": player_id,
-			"position": position,
-			"velocity": velocity,
-		})
+		if not _suppress_events:
+			EventBus.player_moved.emit({
+				"entity_id": player_id,
+				"position": position,
+				"velocity": velocity,
+			})
 
 
 func to_snapshot_data() -> Dictionary:

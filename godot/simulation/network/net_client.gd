@@ -233,10 +233,14 @@ func _reconcile_local_player(snap: Snapshot):
 
 	# Replay unacknowledged inputs through the canonical advance function,
 	# using tick interval as dt to match how the server processed them.
+	# Suppress EventBus emissions during replay — view-side juice (FootstepDust,
+	# WallBump, DodgeTrail, screen shake) must not fire once per replayed input.
 	var tick_dt: float = MessageTypes.TICK_INTERVAL_MS / 1000.0
+	_local_player._suppress_events = true
 	for pending in _pending_inputs:
 		_local_player.apply_input(pending)
 		_local_player.advance(tick_dt)
+	_local_player._suppress_events = false
 
 	# Visual offset: smoothly blend from old visual position to new logical position
 	var correction: Vector2 = visual_before - _local_player.position
