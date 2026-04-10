@@ -90,7 +90,8 @@ func test_encode_decode_full_snapshot():
 		"entities": entities,
 	}
 	var bytes = NetMessage.encode(msg)
-	var expected_size = MessageTypes.Layout.SNAPSHOT_HEADER_SIZE + (2 * MessageTypes.Layout.ENTITY_SIZE)
+	# +2 for the enemy_count u16 appended after the player section
+	var expected_size = MessageTypes.Layout.SNAPSHOT_HEADER_SIZE + (2 * MessageTypes.Layout.ENTITY_SIZE) + 2
 	assert_eq(bytes.size(), expected_size)
 
 	var decoded = NetMessage.decode_binary(bytes)
@@ -180,7 +181,8 @@ func test_empty_snapshot():
 		"entities": [],
 	}
 	var bytes = NetMessage.encode(msg)
-	assert_eq(bytes.size(), MessageTypes.Layout.SNAPSHOT_HEADER_SIZE)
+	# +2 for the enemy_count u16 appended after the player section
+	assert_eq(bytes.size(), MessageTypes.Layout.SNAPSHOT_HEADER_SIZE + 2)
 
 	var decoded = NetMessage.decode_binary(bytes)
 	assert_eq(decoded["entities"].size(), 0)
@@ -238,7 +240,8 @@ func test_snapshot_round_trip_collision_fields():
 		"entities": entities,
 	}
 	var bytes = NetMessage.encode(msg)
-	assert_eq(bytes.size(), MessageTypes.Layout.SNAPSHOT_HEADER_SIZE + MessageTypes.Layout.ENTITY_SIZE)
+	# +2 for the enemy_count u16 appended after the player section
+	assert_eq(bytes.size(), MessageTypes.Layout.SNAPSHOT_HEADER_SIZE + MessageTypes.Layout.ENTITY_SIZE + 2)
 	var decoded = NetMessage.decode_binary(bytes)
 	var ent = decoded["entities"][0]
 	assert_eq(ent["collision_count"], 7)

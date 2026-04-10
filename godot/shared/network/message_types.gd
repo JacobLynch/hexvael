@@ -6,6 +6,7 @@ enum Binary {
 	DELTA_SNAPSHOT = 2,
 	SNAPSHOT_ACK = 3,
 	PLAYER_INPUT = 4,
+	ENEMY_DIED = 5,
 }
 
 # JSON message types — value of the "type" key
@@ -22,6 +23,11 @@ enum EntityFlags {
 	DODGING = 4,      # Entity is in the DODGING state (for view-side trail trigger)
 }
 
+# Enemy-specific state flags used in enemy snapshot data
+enum EnemyFlags {
+	REMOVED = 255,    # Enemy was removed (delta only)
+}
+
 # Binary layout sizes in bytes
 class Layout:
 	# Snapshot frame header: [msg_type: u8][tick: u32][entity_count: u16]
@@ -36,6 +42,10 @@ class Layout:
 	const INPUT_SIZE = 26
 	# Snapshot ACK: [msg_type: u8][tick: u32]
 	const ACK_SIZE = 5
+	# Per-enemy: [entity_id: u16][x: f32][y: f32][state: u8][facing_x: f16][facing_y: f16][spawn_timer: f16]
+	const ENEMY_ENTITY_SIZE = 17
+	# Enemy died: [type: u8][entity_id: u16][x: f32][y: f32][killer_id: u16]
+	const ENEMY_DIED_SIZE = 13
 
 # Limits
 const MAX_PLAYERS = 8
