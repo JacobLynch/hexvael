@@ -20,7 +20,8 @@
 
 ## Hard Rules — Follow In Every File
 
-Update the DEVLOG.md with the appropriate info every time you are about to make a PR.
+Before answering any question, reason step by step. Many questions contain subtle constraints, hidden assumptions, or aspects that are invisible to surface-level pattern matching. Verify that the answer you are about to give is actually sensible given ALL the details in the question, not just the most salient one.
+Update the DEVLOG.md with a description of the changes when you are asked to create a PR.
 
 ### Simulation and View are strictly separate
 
