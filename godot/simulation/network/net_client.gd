@@ -39,6 +39,7 @@ var _input_timer: float = 0.0
 # Direction set by caller each frame (view/input layer)
 var input_direction: Vector2 = Vector2.ZERO
 var aim_direction: Vector2 = Vector2.RIGHT  # set by caller each frame
+var dodge_pressed_latch: bool = false  # set by caller; consumed by _send_input
 
 
 func connect_to_server(address: String, port: int) -> Error:
@@ -71,6 +72,11 @@ func _process(delta: float):
 				"move_direction": input_direction,
 				"aim_direction": aim_direction,
 			})
+			# Don't pass dodge_pressed via apply_input — it's handled directly below
+			# so that prediction kicks off the dodge exactly once per latch-set state,
+			# and _send_input clears the latch at tick rate.
+			if dodge_pressed_latch and _local_player.can_dodge():
+				_local_player.start_dodge()  # client predicts dodge immediately
 			_local_player.advance(delta)
 
 		# Send input at tick rate (network bandwidth stays at 20Hz)
@@ -171,10 +177,14 @@ func _send_input():
 
 	_input_seq += 1
 
+	var dodge = dodge_pressed_latch
+	dodge_pressed_latch = false  # consume once per tick send
+
 	var input = {
 		"seq": _input_seq,
 		"move_direction": input_direction,
 		"aim_direction": aim_direction,
+		"dodge_pressed": dodge,
 	}
 	_pending_inputs.append(input)
 	if _pending_inputs.size() > MAX_PENDING_INPUTS:
@@ -185,6 +195,7 @@ func _send_input():
 		"tick": _server_tick,
 		"move_direction": input_direction,
 		"aim_direction": aim_direction,
+		"dodge_pressed": dodge,
 		"input_seq": _input_seq,
 	}
 	_ws.send(NetMessage.encode(msg))
@@ -207,17 +218,20 @@ func _reconcile_local_player(snap: Snapshot):
 	while _pending_inputs.size() > 0 and _pending_inputs[0]["seq"] <= server_seq:
 		_pending_inputs.pop_front()
 
-	# Snap to server authoritative position
+	# Restore authoritative state before replay
 	_local_player.position = server_pos
+	_local_player.velocity = server_data.get("velocity", Vector2.ZERO)
+	_local_player.aim_direction = server_data.get("aim_direction", Vector2.RIGHT)
+	_local_player.state = server_data.get("state", 0)
+	_local_player.dodge_time_remaining = server_data.get("dodge_time_remaining", 0.0)
+	# dodge_cooldown_remaining is not in the snapshot; if the server says we're
+	# past a dodge, cooldown is implicit in server state. Leave local cooldown.
 
 	# Replay unacknowledged inputs through the canonical advance function,
 	# using tick interval as dt to match how the server processed them.
 	var tick_dt: float = MessageTypes.TICK_INTERVAL_MS / 1000.0
 	for pending in _pending_inputs:
-		_local_player.apply_input({
-			"move_direction": pending["move_direction"],
-			"aim_direction": pending["aim_direction"],
-		})
+		_local_player.apply_input(pending)
 		_local_player.advance(tick_dt)
 
 	# Visual offset: smoothly blend from old visual position to new logical position

@@ -19,7 +19,49 @@ func test_player_input_round_trip():
 	assert_almost_eq(decoded["move_direction"].y, -0.8, 0.001)
 	assert_almost_eq(decoded["aim_direction"].x, 1.0, 0.001)
 	assert_almost_eq(decoded["aim_direction"].y, 0.0, 0.001)
+	assert_eq(decoded["dodge_pressed"], false)
 	assert_eq(decoded["input_seq"], 1234)
+
+
+func test_player_input_round_trip_with_dodge():
+	var msg = {
+		"type": MessageTypes.Binary.PLAYER_INPUT,
+		"tick": 42,
+		"move_direction": Vector2(0.6, -0.8),
+		"aim_direction": Vector2(1.0, 0.0),
+		"dodge_pressed": true,
+		"input_seq": 1234,
+	}
+	var bytes = NetMessage.encode(msg)
+	assert_eq(bytes.size(), MessageTypes.Layout.INPUT_SIZE)
+	var decoded = NetMessage.decode_binary(bytes)
+	assert_eq(decoded["dodge_pressed"], true)
+	assert_eq(decoded["input_seq"], 1234)
+
+
+func test_snapshot_round_trip_with_dodge_state():
+	var msg = {
+		"type": MessageTypes.Binary.FULL_SNAPSHOT,
+		"tick": 100,
+		"entities": [{
+			"entity_id": 1,
+			"position": Vector2(240.0, 160.0),
+			"flags": MessageTypes.EntityFlags.MOVING | MessageTypes.EntityFlags.DODGING,
+			"last_input_seq": 55,
+			"velocity": Vector2(700.0, 0.0),
+			"aim_direction": Vector2(1.0, 0.0),
+			"state": 1,
+			"dodge_time_remaining": 0.15,
+		}],
+	}
+	var bytes = NetMessage.encode(msg)
+	var decoded = NetMessage.decode_binary(bytes)
+	var ent = decoded["entities"][0]
+	assert_eq(ent["entity_id"], 1)
+	assert_almost_eq(ent["velocity"].x, 700.0, 0.01)
+	assert_eq(ent["state"], 1)
+	assert_almost_eq(ent["dodge_time_remaining"], 0.15, 0.001)
+	assert_eq(ent["flags"] & MessageTypes.EntityFlags.DODGING, MessageTypes.EntityFlags.DODGING)
 
 
 func test_encode_decode_snapshot_ack():

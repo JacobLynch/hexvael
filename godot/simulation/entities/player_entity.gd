@@ -129,14 +129,18 @@ func advance(dt: float) -> void:
 
 
 func to_snapshot_data() -> Dictionary:
-	# NOTE: Task 5 extends this with velocity, aim_direction, state, dodge_time_remaining.
-	# This task only renames fields; the snapshot binary format is unchanged.
 	var flags = MessageTypes.EntityFlags.NONE
 	if velocity.length_squared() > 0.0:
-		flags = MessageTypes.EntityFlags.MOVING
+		flags |= MessageTypes.EntityFlags.MOVING
+	if state == PlayerMovementState.DODGING:
+		flags |= MessageTypes.EntityFlags.DODGING
 	return {
 		"entity_id": player_id,
 		"position": position,
 		"flags": flags,
 		"last_input_seq": last_processed_input_seq,
+		"velocity": velocity,
+		"aim_direction": aim_direction,
+		"state": state,
+		"dodge_time_remaining": dodge_time_remaining,
 	}

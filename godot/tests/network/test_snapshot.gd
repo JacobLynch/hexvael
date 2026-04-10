@@ -4,7 +4,16 @@ var Snapshot = preload("res://simulation/network/snapshot.gd")
 
 
 func _make_entity(id: int, x: float, y: float, flags: int = 0, last_input_seq: int = 0) -> Dictionary:
-	return {"entity_id": id, "position": Vector2(x, y), "flags": flags, "last_input_seq": last_input_seq}
+	return {
+		"entity_id": id,
+		"position": Vector2(x, y),
+		"flags": flags,
+		"last_input_seq": last_input_seq,
+		"velocity": Vector2.ZERO,
+		"aim_direction": Vector2.RIGHT,
+		"state": 0,
+		"dodge_time_remaining": 0.0,
+	}
 
 
 func test_capture_entities():
@@ -141,3 +150,42 @@ func test_duplicate_creates_independent_copy():
 	var copy = snap.duplicate_snapshot()
 	copy.entities[1]["position"] = Vector2(999.0, 999.0)
 	assert_almost_eq(snap.entities[1]["position"].x, 100.0, 0.01, "Original should be unchanged")
+
+
+func test_diff_detects_velocity_change():
+	var baseline = Snapshot.new()
+	baseline.entities[1] = {
+		"entity_id": 1,
+		"position": Vector2(100.0, 100.0),
+		"flags": 0,
+		"last_input_seq": 1,
+		"velocity": Vector2.ZERO,
+		"aim_direction": Vector2.RIGHT,
+		"state": 0,
+		"dodge_time_remaining": 0.0,
+	}
+	var current = Snapshot.new()
+	current.entities[1] = baseline.entities[1].duplicate()
+	current.entities[1]["velocity"] = Vector2(200.0, 0.0)
+	var delta = Snapshot.diff(baseline, current)
+	assert_eq(delta.size(), 1)
+
+
+func test_diff_detects_dodge_state_change():
+	var baseline = Snapshot.new()
+	baseline.entities[1] = {
+		"entity_id": 1,
+		"position": Vector2(100.0, 100.0),
+		"flags": 0,
+		"last_input_seq": 1,
+		"velocity": Vector2.ZERO,
+		"aim_direction": Vector2.RIGHT,
+		"state": 0,
+		"dodge_time_remaining": 0.0,
+	}
+	var current = Snapshot.new()
+	current.entities[1] = baseline.entities[1].duplicate()
+	current.entities[1]["state"] = 1
+	current.entities[1]["dodge_time_remaining"] = 0.2
+	var delta = Snapshot.diff(baseline, current)
+	assert_eq(delta.size(), 1)
