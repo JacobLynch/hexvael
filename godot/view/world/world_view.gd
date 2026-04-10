@@ -1,9 +1,11 @@
 extends Node2D
 
 var PlayerViewScene: PackedScene = preload("res://view/world/player_view.tscn")
+var CameraRigScene: PackedScene = preload("res://view/world/camera_rig.tscn")
 
 var _player_views: Dictionary = {}  # player_id -> PlayerView node
 var _net_client: NetClient = null
+var _camera_rig: CameraRig
 
 
 func initialize(net_client: NetClient) -> void:
@@ -13,6 +15,13 @@ func initialize(net_client: NetClient) -> void:
 	_net_client.player_joined.connect(_on_player_joined)
 	_net_client.player_left.connect(_on_player_left)
 	_net_client.snapshot_received.connect(_on_snapshot)
+	_camera_rig = CameraRigScene.instantiate()
+	add_child(_camera_rig)
+	_camera_rig.initialize(_net_client)
+
+
+func get_camera_rig() -> CameraRig:
+	return _camera_rig
 
 
 func _on_connected(_player_id: int):
