@@ -16,6 +16,9 @@ var _shake_offset: Vector2 = Vector2.ZERO
 
 func _ready() -> void:
 	zoom = Vector2(zoom_factor, zoom_factor)
+	# Force this camera to be the active one. Without this, any other Camera2D
+	# already added to the scene tree (e.g. an editor placeholder) keeps current.
+	make_current()
 
 
 func initialize(net_client: NetClient) -> void:
