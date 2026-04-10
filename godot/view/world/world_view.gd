@@ -26,6 +26,7 @@ func initialize(net_client: NetClient) -> void:
 	var wall_bump = preload("res://view/effects/wall_bump.gd").new()
 	add_child(wall_bump)
 	wall_bump.initialize(_camera_rig)
+	EventBus.player_dodge_started.connect(_on_any_dodge_started)
 
 
 func get_camera_rig() -> CameraRig:
@@ -119,3 +120,17 @@ func _remove_player_view(player_id: int):
 	if _player_views.has(player_id):
 		_player_views[player_id].queue_free()
 		_player_views.erase(player_id)
+
+
+func _on_any_dodge_started(event: Dictionary):
+	# Only shake for the local player — remote dodges don't shake your camera
+	if _net_client == null:
+		return
+	if event["entity_id"] == _net_client.get_local_player_id():
+		if _camera_rig != null:
+			_camera_rig.add_shake(1.0, 0.05)
+
+
+func _exit_tree():
+	if EventBus.player_dodge_started.is_connected(_on_any_dodge_started):
+		EventBus.player_dodge_started.disconnect(_on_any_dodge_started)
