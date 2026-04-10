@@ -62,17 +62,34 @@ func _process(delta: float):
 
 	for player_id in _player_views:
 		var view = _player_views[player_id]
+		var aim: Vector2 = Vector2.RIGHT
+		var state: int = 0
+		var vel_mag: float = 0.0
+
 		if view.is_local:
-			# Local player: follow entity position + visual offset
 			var local_pos = _net_client.get_local_player_position()
 			if local_pos != null:
 				var offset = _net_client.get_visual_offset()
 				view.update_position(local_pos + offset)
 				_net_client.blend_visual_offset(delta)
+			# Pull visual state from local predicted player
+			var local_player = _net_client._local_player  # view reads sim state, doesn't mutate
+			if local_player != null:
+				aim = local_player.aim_direction
+				state = local_player.state
+				vel_mag = local_player.velocity.length()
 		else:
 			var interp_pos = _net_client.get_interpolated_position(player_id)
 			if interp_pos != null:
 				view.update_position(interp_pos)
+			# Pull visual state from latest snapshot
+			if _net_client._snapshot_curr != null and _net_client._snapshot_curr.entities.has(player_id):
+				var ent = _net_client._snapshot_curr.entities[player_id]
+				aim = ent.get("aim_direction", Vector2.RIGHT)
+				state = ent.get("state", 0)
+				vel_mag = ent.get("velocity", Vector2.ZERO).length()
+
+		view.update_visual_state(aim, state, vel_mag, delta)
 
 
 func _add_player_view(player_id: int, pos: Vector2, is_local: bool):
