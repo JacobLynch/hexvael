@@ -14,7 +14,7 @@ var _server_tick: int = 0
 
 # Client-side prediction state
 var _input_seq: int = 0
-var _pending_inputs: Array = []  # { seq, move_direction, aim_direction }
+var _pending_inputs: Array = []  # { input_seq, move_direction, aim_direction, dodge_pressed }
 var _local_player: PlayerEntity = null
 
 # Interpolation state: two most recent snapshots for remote entities
@@ -185,7 +185,7 @@ func _send_input():
 	dodge_pressed_latch = false  # consume once per tick send
 
 	var input = {
-		"seq": _input_seq,
+		"input_seq": _input_seq,
 		"move_direction": input_direction,
 		"aim_direction": aim_direction,
 		"dodge_pressed": dodge,
@@ -219,7 +219,7 @@ func _reconcile_local_player(snap: Snapshot):
 	var visual_before: Vector2 = _local_player.position + _visual_offset
 
 	# Discard predictions the server has already processed
-	while _pending_inputs.size() > 0 and _pending_inputs[0]["seq"] <= server_seq:
+	while _pending_inputs.size() > 0 and _pending_inputs[0]["input_seq"] <= server_seq:
 		_pending_inputs.pop_front()
 
 	# Restore authoritative state before replay
@@ -230,6 +230,13 @@ func _reconcile_local_player(snap: Snapshot):
 	_local_player.dodge_time_remaining = server_data.get("dodge_time_remaining", 0.0)
 	# dodge_cooldown_remaining is not in the snapshot; if the server says we're
 	# past a dodge, cooldown is implicit in server state. Leave local cooldown.
+	# If currently dodging, derive dodge_direction from velocity so the next
+	# replayed tick continues in the server-authoritative direction rather than
+	# overriding with the client's stale direction * dodge_speed.
+	if _local_player.state == PlayerMovementState.DODGING:
+		var v: Vector2 = _local_player.velocity
+		if v.length_squared() > 0.01:
+			_local_player.dodge_direction = v.normalized()
 
 	# Replay unacknowledged inputs through the canonical advance function,
 	# using tick interval as dt to match how the server processed them.
@@ -295,6 +302,31 @@ func get_local_player_position() -> Variant:
 	if _local_player == null:
 		return null
 	return _local_player.position
+
+
+## Returns the local player's predicted aim direction (unit vector), or null if no local player.
+func get_local_player_aim_direction() -> Variant:
+	if _local_player == null: return null
+	return _local_player.aim_direction
+
+
+## Returns the local player's current movement state (PlayerMovementState constant), or null.
+func get_local_player_state() -> Variant:
+	if _local_player == null: return null
+	return _local_player.state
+
+
+## Returns the local player's current velocity vector, or null.
+func get_local_player_velocity() -> Variant:
+	if _local_player == null: return null
+	return _local_player.velocity
+
+
+## Returns a remote entity's snapshot data dict (read-only), or null if not present.
+func get_remote_entity_snapshot(entity_id: int) -> Variant:
+	if _snapshot_curr == null: return null
+	if not _snapshot_curr.entities.has(entity_id): return null
+	return _snapshot_curr.entities[entity_id]
 
 
 func get_visual_offset() -> Vector2:
