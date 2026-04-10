@@ -6,6 +6,8 @@ signal disconnected()
 signal snapshot_received(tick: int, entities: Array)
 signal player_joined(player_id: int, spawn_position: Vector2)
 signal player_left(player_id: int)
+signal enemy_snapshot_updated(enemy_entities: Dictionary)
+signal enemy_died_received(event: Dictionary)
 
 var _ws := WebSocketPeer.new()
 var _connected: bool = false
@@ -21,6 +23,8 @@ var _local_player: PlayerEntity = null
 var _snapshot_prev: Snapshot = null
 var _snapshot_curr: Snapshot = null
 var _snapshot_time: float = 0.0  # Time since _snapshot_curr arrived
+var _enemy_prev: Dictionary = {}  # entity_id -> snapshot data
+var _enemy_curr: Dictionary = {}  # entity_id -> snapshot data
 
 # Max remote interpolation t — allows brief extrapolation past the latest snapshot
 # to cover network jitter, preventing the freeze-then-jump stutter.
@@ -130,6 +134,14 @@ func _handle_binary_message(bytes: PackedByteArray):
 			_apply_full_snapshot(msg)
 		MessageTypes.Binary.DELTA_SNAPSHOT:
 			_apply_delta_snapshot(msg)
+		MessageTypes.Binary.ENEMY_DIED:
+			var event = {
+				"entity_id": msg["entity_id"],
+				"position": msg["position"],
+				"killer_id": msg["killer_id"],
+			}
+			EventBus.enemy_died.emit(event)
+			enemy_died_received.emit(event)
 
 
 func _apply_full_snapshot(msg: Dictionary):
@@ -144,6 +156,16 @@ func _apply_full_snapshot(msg: Dictionary):
 
 	_reconcile_local_player(snap)
 	_send_ack(msg["tick"])
+
+	# Enemy entities
+	_enemy_prev = {}
+	_enemy_curr = {}
+	for ent in msg.get("enemy_entities", []):
+		var eid = ent["entity_id"]
+		_enemy_prev[eid] = ent.duplicate()
+		_enemy_curr[eid] = ent.duplicate()
+	enemy_snapshot_updated.emit(_enemy_curr)
+
 	snapshot_received.emit(snap.tick, msg["entities"])
 
 
@@ -158,6 +180,17 @@ func _apply_delta_snapshot(msg: Dictionary):
 
 	_reconcile_local_player(_snapshot_curr)
 	_send_ack(msg["tick"])
+
+	# Enemy delta
+	_enemy_prev = _enemy_curr.duplicate()
+	for ent in msg.get("enemy_entities", []):
+		var eid: int = ent["entity_id"]
+		if ent["state"] == MessageTypes.EnemyFlags.REMOVED:
+			_enemy_curr.erase(eid)
+		else:
+			_enemy_curr[eid] = ent.duplicate()
+	enemy_snapshot_updated.emit(_enemy_curr)
+
 	snapshot_received.emit(_snapshot_curr.tick, msg["entities"])
 
 
@@ -298,6 +331,30 @@ func get_interpolated_position(entity_id: int) -> Variant:
 		var snap_vel: Vector2 = curr.get("velocity", (curr_pos - prev_pos) / tick_interval)
 		var extra_time = (t - 1.0) * tick_interval
 		return curr_pos + snap_vel * extra_time
+
+
+func get_interpolated_enemy(entity_id: int) -> Variant:
+	if not _enemy_curr.has(entity_id):
+		return null
+
+	var curr = _enemy_curr[entity_id]
+	if not _enemy_prev.has(entity_id):
+		return curr  # New enemy, no interpolation
+
+	var prev = _enemy_prev[entity_id]
+	var tick_interval = MessageTypes.TICK_INTERVAL_MS / 1000.0
+	var t = clampf(_snapshot_time / tick_interval, 0.0, MAX_REMOTE_INTERP)
+
+	var result = curr.duplicate()
+	result["position"] = prev["position"].lerp(curr["position"], t)
+	result["facing"] = prev["facing"].lerp(curr["facing"], t)
+	if result["facing"].length_squared() > 0.0:
+		result["facing"] = result["facing"].normalized()
+	return result
+
+
+func get_enemy_ids() -> Array:
+	return _enemy_curr.keys()
 
 
 func get_local_player_position() -> Variant:
