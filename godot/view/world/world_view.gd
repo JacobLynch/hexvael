@@ -18,10 +18,19 @@ func initialize(net_client: NetClient) -> void:
 	_camera_rig = CameraRigScene.instantiate()
 	add_child(_camera_rig)
 	_camera_rig.initialize(_net_client)
+	var dodge_trail = preload("res://view/effects/dodge_trail.gd").new()
+	add_child(dodge_trail)
+	dodge_trail.initialize(self)
 
 
 func get_camera_rig() -> CameraRig:
 	return _camera_rig
+
+
+func get_player_view_position(player_id: int) -> Variant:
+	if _player_views.has(player_id):
+		return _player_views[player_id].position
+	return null
 
 
 func _on_connected(_player_id: int):
