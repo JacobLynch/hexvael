@@ -1,7 +1,8 @@
 class_name Snapshot
 
 var tick: int = 0
-# entity_id -> { "entity_id": int, "position": Vector2, "flags": int }
+# entity_id -> { entity_id, position, flags, last_input_seq, velocity,
+#                aim_direction, state, dodge_time_remaining }
 var entities: Dictionary = {}
 
 

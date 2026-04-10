@@ -39,7 +39,11 @@ var _input_timer: float = 0.0
 # Direction set by caller each frame (view/input layer)
 var input_direction: Vector2 = Vector2.ZERO
 var aim_direction: Vector2 = Vector2.RIGHT  # set by caller each frame
-var dodge_pressed_latch: bool = false  # set by caller; consumed by _send_input
+# Edge-triggered dodge latch. Set to true by the view layer on the display frame
+# the dodge key is pressed; cleared by _send_input when the next tick fires.
+# This bridges the display-rate-to-tick-rate cadence gap so a dodge press that
+# lands between two tick boundaries is never dropped and never double-fires.
+var dodge_pressed_latch: bool = false
 
 
 func connect_to_server(address: String, port: int) -> Error:

@@ -79,8 +79,8 @@ func test_encode_decode_snapshot_ack():
 
 func test_encode_decode_full_snapshot():
 	var entities = [
-		{"entity_id": 1, "position": Vector2(100.5, 200.75), "flags": MessageTypes.EntityFlags.MOVING, "last_input_seq": 42},
-		{"entity_id": 2, "position": Vector2(300.0, 400.0), "flags": MessageTypes.EntityFlags.NONE, "last_input_seq": 0},
+		{"entity_id": 1, "position": Vector2(100.5, 200.75), "flags": MessageTypes.EntityFlags.MOVING, "last_input_seq": 42, "velocity": Vector2.ZERO, "aim_direction": Vector2.RIGHT, "state": 0, "dodge_time_remaining": 0.0},
+		{"entity_id": 2, "position": Vector2(300.0, 400.0), "flags": MessageTypes.EntityFlags.NONE, "last_input_seq": 0, "velocity": Vector2.ZERO, "aim_direction": Vector2.RIGHT, "state": 0, "dodge_time_remaining": 0.0},
 	]
 	var msg = {
 		"type": MessageTypes.Binary.FULL_SNAPSHOT,
@@ -105,7 +105,7 @@ func test_encode_decode_full_snapshot():
 
 func test_encode_decode_delta_snapshot():
 	var entities = [
-		{"entity_id": 1, "position": Vector2(105.0, 205.0), "flags": MessageTypes.EntityFlags.MOVING, "last_input_seq": 7},
+		{"entity_id": 1, "position": Vector2(105.0, 205.0), "flags": MessageTypes.EntityFlags.MOVING, "last_input_seq": 7, "velocity": Vector2.ZERO, "aim_direction": Vector2.RIGHT, "state": 0, "dodge_time_remaining": 0.0},
 	]
 	var msg = {
 		"type": MessageTypes.Binary.DELTA_SNAPSHOT,
@@ -201,7 +201,7 @@ func test_input_seq_supports_u32_range():
 func test_last_input_seq_supports_u32_range():
 	var large_seq: int = 100000
 	var entities = [
-		{"entity_id": 1, "position": Vector2.ZERO, "flags": 0, "last_input_seq": large_seq},
+		{"entity_id": 1, "position": Vector2.ZERO, "flags": 0, "last_input_seq": large_seq, "velocity": Vector2.ZERO, "aim_direction": Vector2.RIGHT, "state": 0, "dodge_time_remaining": 0.0},
 	]
 	var msg = {
 		"type": MessageTypes.Binary.FULL_SNAPSHOT,

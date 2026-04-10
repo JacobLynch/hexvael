@@ -125,7 +125,7 @@ func test_apply_delta_removes_entity():
 	snap.entities = {
 		1: _make_entity(1, 100.0, 200.0),
 	}
-	var delta_entities = [{"entity_id": 1, "position": Vector2.ZERO, "flags": MessageTypes.EntityFlags.REMOVED, "last_input_seq": 0}]
+	var delta_entities = [{"entity_id": 1, "position": Vector2.ZERO, "flags": MessageTypes.EntityFlags.REMOVED, "last_input_seq": 0, "velocity": Vector2.ZERO, "aim_direction": Vector2.RIGHT, "state": 0, "dodge_time_remaining": 0.0}]
 	snap.apply_delta(11, delta_entities)
 	assert_false(snap.entities.has(1))
 
