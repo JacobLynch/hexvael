@@ -1,5 +1,7 @@
 extends Node2D
 
+const PlayerMovementState = preload("res://simulation/entities/player_movement_state.gd")
+
 var player_id: int = -1
 var is_local: bool = false
 var _target_position: Vector2 = Vector2.ZERO
@@ -47,10 +49,9 @@ func update_visual_state(aim_dir: Vector2, state: int, velocity_magnitude: float
 	if aim_dir.length_squared() > 0.01:
 		_facing_line.rotation = aim_dir.angle()
 
-	# i-frame tint while dodging (state 1 = DODGING)
-	const DODGING = 1
-	if state == DODGING:
-		_visual.color = _base_color.lerp(Color(1.4, 1.4, 1.8), 1.0)
+	# i-frame tint while dodging
+	if state == PlayerMovementState.DODGING:
+		_visual.color = Color(1.4, 1.4, 1.8)
 	else:
 		_visual.color = _base_color
 

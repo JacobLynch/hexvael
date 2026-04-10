@@ -47,6 +47,17 @@ func can_dodge() -> bool:
 	return state == PlayerMovementState.WALKING and dodge_cooldown_remaining <= 0.0
 
 
+## Returns true while the dodge is in its i-frame window. For v1, dodge_iframe_duration
+## matches dodge_duration so this is equivalent to "is currently dodging" — but the
+## indirection lets future combat code reduce iframe_duration to a slice of the dodge
+## without changing callers.
+func is_iframe_active() -> bool:
+	if state != PlayerMovementState.DODGING:
+		return false
+	var elapsed: float = params.dodge_duration - dodge_time_remaining
+	return elapsed < params.dodge_iframe_duration
+
+
 func start_dodge() -> void:
 	# Defensive guard — silently no-op if already dodging. All current callers
 	# gate on can_dodge() first, but this prevents subtle state resets if that
