@@ -24,8 +24,8 @@ func _make_player(pos: Vector2) -> PlayerEntity:
 func test_replay_matches_server_for_walking():
 	# Spawn arena so collision shapes exist for both players
 	add_child_autofree(ArenaScene.instantiate())
-	var server = _make_player(Vector2(240.0, 160.0))
-	var client = _make_player(Vector2(240.0, 160.0))
+	var server = _make_player(Vector2(1200.0, 800.0))
+	var client = _make_player(Vector2(1200.0, 800.0))
 
 	var inputs: Array = []
 	for seq in range(10):
@@ -43,7 +43,7 @@ func test_replay_matches_server_for_walking():
 		server.advance(TICK_S)
 
 	# Client "reconciles" by resetting to initial state then replaying identical inputs
-	client.position = Vector2(240.0, 160.0)
+	client.position = Vector2(1200.0, 800.0)
 	client.velocity = Vector2.ZERO
 	for input in inputs:
 		client.apply_input(input)
@@ -57,8 +57,8 @@ func test_replay_matches_server_for_walking():
 
 func test_replay_matches_server_mid_dodge():
 	add_child_autofree(ArenaScene.instantiate())
-	var server = _make_player(Vector2(240.0, 160.0))
-	var client = _make_player(Vector2(240.0, 160.0))
+	var server = _make_player(Vector2(1200.0, 800.0))
+	var client = _make_player(Vector2(1200.0, 800.0))
 
 	# Input sequence: walk right for 3 ticks, then dodge, then continue
 	var inputs: Array = []
@@ -95,8 +95,8 @@ func test_replay_rejects_server_rejected_dodge():
 	# include the "attempted dodge" — but server rejected it because of cooldown
 	# state restored from snapshot).
 	add_child_autofree(ArenaScene.instantiate())
-	var server = _make_player(Vector2(240.0, 160.0))
-	var client = _make_player(Vector2(240.0, 160.0))
+	var server = _make_player(Vector2(1200.0, 800.0))
+	var client = _make_player(Vector2(1200.0, 800.0))
 
 	# Put both in cooldown by forcing a prior dodge
 	server.move_input = Vector2(1.0, 0.0)
@@ -131,7 +131,7 @@ func test_netclient_reconcile_converges_to_server_state():
 	add_child_autofree(net)
 
 	# Local player: predicted 5 ticks of rightward movement
-	var local = _make_player(Vector2(240.0, 160.0))
+	var local = _make_player(Vector2(1200.0, 800.0))
 	local.player_id = 1
 	net._local_player = local
 	net._local_player_id = 1
@@ -149,7 +149,7 @@ func test_netclient_reconcile_converges_to_server_state():
 		local.advance(TICK_S)
 
 	# Server has only processed inputs 1 and 2 — simulate that ground truth
-	var server = _make_player(Vector2(240.0, 160.0))
+	var server = _make_player(Vector2(1200.0, 800.0))
 	server.player_id = 1
 	for seq in range(2):
 		server.apply_input({

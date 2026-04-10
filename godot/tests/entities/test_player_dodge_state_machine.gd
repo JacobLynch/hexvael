@@ -14,7 +14,7 @@ func before_each():
 func _make_player() -> PlayerEntity:
 	var p = PlayerEntityScene.instantiate()
 	add_child_autofree(p)
-	p.initialize(1, Vector2(240.0, 160.0))  # arena center, away from walls
+	p.initialize(1, Vector2(1200.0, 800.0))  # arena center, away from walls
 	p.params = _params
 	return p
 
@@ -111,13 +111,13 @@ func test_dodge_respects_walls():
 	var arena = preload("res://shared/world/arena.tscn").instantiate()
 	add_child_autofree(arena)
 	var p = _make_player()
-	p.position = Vector2(470.0, 160.0)  # near right wall
+	p.position = Vector2(2390.0, 800.0)  # near right wall
 	p.move_input = Vector2(1.0, 0.0)
 	p.start_dodge()
 	# Dodge a full duration of motion
 	for i in range(10):
 		p.advance(_params.dodge_duration / 10.0)
-	assert_lt(p.position.x, 480.0, "Dodge must not phase through walls")
+	assert_lt(p.position.x, 2400.0, "Dodge must not phase through walls")
 
 
 func test_dodge_impulse_overrides_walking_velocity():

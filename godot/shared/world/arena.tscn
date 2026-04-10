@@ -1,39 +1,39 @@
 [gd_scene load_steps=5 format=3]
 
 [sub_resource type="RectangleShape2D" id="top_wall"]
-size = Vector2(480, 8)
+size = Vector2(2400, 8)
 
 [sub_resource type="RectangleShape2D" id="bottom_wall"]
-size = Vector2(480, 8)
+size = Vector2(2400, 8)
 
 [sub_resource type="RectangleShape2D" id="left_wall"]
-size = Vector2(8, 320)
+size = Vector2(8, 1600)
 
 [sub_resource type="RectangleShape2D" id="right_wall"]
-size = Vector2(8, 320)
+size = Vector2(8, 1600)
 
 [node name="Arena" type="Node2D"]
 
 [node name="Floor" type="ColorRect" parent="."]
 z_index = -10
-offset_right = 480.0
-offset_bottom = 320.0
+offset_right = 2400.0
+offset_bottom = 1600.0
 color = Color(0.12, 0.11, 0.14, 1)
 
 [node name="WallTop" type="ColorRect" parent="."]
 z_index = -9
 offset_left = 0.0
 offset_top = -4.0
-offset_right = 480.0
+offset_right = 2400.0
 offset_bottom = 0.0
 color = Color(0.25, 0.22, 0.28, 1)
 
 [node name="WallBottom" type="ColorRect" parent="."]
 z_index = -9
 offset_left = 0.0
-offset_top = 320.0
-offset_right = 480.0
-offset_bottom = 324.0
+offset_top = 1600.0
+offset_right = 2400.0
+offset_bottom = 1604.0
 color = Color(0.25, 0.22, 0.28, 1)
 
 [node name="WallLeft" type="ColorRect" parent="."]
@@ -41,31 +41,31 @@ z_index = -9
 offset_left = -4.0
 offset_top = -4.0
 offset_right = 0.0
-offset_bottom = 324.0
+offset_bottom = 1604.0
 color = Color(0.25, 0.22, 0.28, 1)
 
 [node name="WallRight" type="ColorRect" parent="."]
 z_index = -9
-offset_left = 480.0
+offset_left = 2400.0
 offset_top = -4.0
-offset_right = 484.0
-offset_bottom = 324.0
+offset_right = 2404.0
+offset_bottom = 1604.0
 color = Color(0.25, 0.22, 0.28, 1)
 
 [node name="Collision" type="StaticBody2D" parent="."]
 
 [node name="TopWall" type="CollisionShape2D" parent="Collision"]
-position = Vector2(240, -4)
+position = Vector2(1200, -4)
 shape = SubResource("top_wall")
 
 [node name="BottomWall" type="CollisionShape2D" parent="Collision"]
-position = Vector2(240, 324)
+position = Vector2(1200, 1604)
 shape = SubResource("bottom_wall")
 
 [node name="LeftWall" type="CollisionShape2D" parent="Collision"]
-position = Vector2(-4, 160)
+position = Vector2(-4, 800)
 shape = SubResource("left_wall")
 
 [node name="RightWall" type="CollisionShape2D" parent="Collision"]
-position = Vector2(484, 160)
+position = Vector2(2404, 800)
 shape = SubResource("right_wall")

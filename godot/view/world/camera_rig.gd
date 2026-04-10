@@ -1,6 +1,7 @@
 class_name CameraRig
 extends Camera2D
 
+@export var zoom_factor: float = 3.0  # higher = more zoomed in (Godot 4 convention)
 @export var deadzone_size: Vector2 = Vector2(40.0, 30.0)
 @export var lookahead_max: float = 80.0
 @export var lookahead_ramp: float = 140.0
@@ -11,6 +12,10 @@ var _net_client: NetClient
 var _target_position: Vector2 = Vector2.ZERO
 var _shake_amplitude: float = 0.0
 var _shake_offset: Vector2 = Vector2.ZERO
+
+
+func _ready() -> void:
+	zoom = Vector2(zoom_factor, zoom_factor)
 
 
 func initialize(net_client: NetClient) -> void:
