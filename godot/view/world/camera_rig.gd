@@ -43,11 +43,12 @@ func _process(delta: float):
 		var amt = clampf(mouse_offset.length() / lookahead_ramp, 0.0, 1.0)
 		lookahead = mouse_offset.normalized() * lookahead_max * amt
 
-	# Shake: random offset, exponential decay
-	# RNG.next_float() returns [0,1); scale to [-1,1) for bidirectional offset
+	# Shake: random offset, exponential decay.
+	# View-only randomness — uses Godot's built-in RNG so we don't drain
+	# the deterministic simulation RNG stream (see CLAUDE.md "One RNG instance only").
 	if _shake_amplitude > 0.001:
-		var rx = RNG.next_float() * 2.0 - 1.0
-		var ry = RNG.next_float() * 2.0 - 1.0
+		var rx = randf() * 2.0 - 1.0
+		var ry = randf() * 2.0 - 1.0
 		_shake_offset = Vector2(rx, ry) * _shake_amplitude
 		_shake_amplitude *= exp(-shake_decay * delta)
 	else:

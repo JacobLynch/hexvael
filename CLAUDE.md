@@ -43,9 +43,11 @@ Update the DEVLOG.md with the appropriate info every time you are about to make 
 ### One RNG instance only
 
 - Singleton: `RNG` autoload in `/autoloads/rng.gd`
-- Never call `randf()`, `randi()`, or `RandomNumberGenerator.new()` anywhere else
+- Never call `randf()`, `randi()`, or `RandomNumberGenerator.new()` anywhere else in `/simulation/`
 - Always use `RNG.next_float()`, `RNG.next_int()` etc.
 - Violating this breaks determinism and server authority
+
+**Exception — `/view/` may use `randf()` for purely visual randomness** (e.g. screen shake jitter, particle scatter). Visual effects are not part of the deterministic simulation and must not drain the shared RNG stream. Never use `RNG.*` in `/view/`; always use the Godot built-in `randf()`/`randi()` there.
 
 ### Events carry full context
 
