@@ -19,6 +19,10 @@ var _movement_system: MovementSystem
 var _input_buffer := InputBuffer.new()
 var _player_entities: Dictionary = {}  # player_id -> PlayerEntity
 
+var _enemy_system: EnemySystem
+var _enemy_spawner: EnemySpawner
+var _death_events: Array = []
+
 # Snapshot baselines: player_id -> Snapshot (last ACK'd)
 var _baselines: Dictionary = {}
 # Sent snapshots awaiting ACK: player_id -> { tick -> Snapshot }
@@ -34,6 +38,17 @@ const MAX_CONNECTIONS_PER_IP_PER_MINUTE = 10
 func _ready():
 	_movement_system = MovementSystem.new()
 	add_child(_movement_system)
+
+	_enemy_system = EnemySystem.new()
+	add_child(_enemy_system)
+
+	var enemy_params = EnemyParams.new()
+	var spawner_params = SpawnerParams.new()
+	_enemy_spawner = EnemySpawner.new()
+	add_child(_enemy_spawner)
+	_enemy_spawner.initialize(_enemy_system, spawner_params, enemy_params)
+
+	EventBus.enemy_died.connect(_on_enemy_died)
 
 	var err = _tcp_server.listen(port)
 	if err == OK:
@@ -145,6 +160,7 @@ func _on_peer_connected(peer_id: int):
 		"type": MessageTypes.Binary.FULL_SNAPSHOT,
 		"tick": _tick,
 		"entities": snap.to_entity_array(),
+		"enemy_entities": snap.to_enemy_entity_array(),
 	}
 	ws.send(NetMessage.encode(full_msg))
 
@@ -218,11 +234,12 @@ func _handle_binary_message(peer_id: int, bytes: PackedByteArray):
 
 	match msg["type"]:
 		MessageTypes.Binary.PLAYER_INPUT:
-			var dir: Vector2 = msg["direction"]
-			if not (is_finite(dir.x) and is_finite(dir.y)):
+			var move_dir: Vector2 = msg["move_direction"]
+			var aim_dir: Vector2 = msg["aim_direction"]
+			if not (is_finite(move_dir.x) and is_finite(move_dir.y) and is_finite(aim_dir.x) and is_finite(aim_dir.y)):
 				return  # Reject non-finite input
-			if dir.length_squared() > 2.0:  # Allow slightly over 1.0 for float imprecision
-				return  # Reject absurd values
+			if move_dir.length_squared() > 2.5 or aim_dir.length_squared() > 2.5:
+				return  # Reject absurd values; 2.5 gives float headroom above max diagonal (2.0)
 			_input_buffer.add_input(player_id, msg)
 		MessageTypes.Binary.SNAPSHOT_ACK:
 			_handle_snapshot_ack(player_id, msg["tick"])
@@ -256,7 +273,12 @@ func _server_tick():
 		_movement_system.process_inputs_for_player(player_id, inputs)
 
 	# Phase 3: Tick physics
-	_movement_system.tick_all()
+	var tick_dt = MessageTypes.TICK_INTERVAL_MS / 1000.0
+	_movement_system.advance_all(tick_dt)
+
+	# Phase: Spawn and tick enemies
+	_enemy_spawner.advance(MessageTypes.TICK_INTERVAL_MS / 1000.0, _player_entities)
+	_enemy_system.advance_all(MessageTypes.TICK_INTERVAL_MS / 1000.0, _player_entities)
 
 	# Phase 4-5: Build and send snapshots
 	var current_snap = _build_current_snapshot()
@@ -278,6 +300,7 @@ func _server_tick():
 				"type": MessageTypes.Binary.FULL_SNAPSHOT,
 				"tick": _tick,
 				"entities": current_snap.to_entity_array(),
+				"enemy_entities": current_snap.to_enemy_entity_array(),
 			}
 			ws.send(NetMessage.encode(full_msg))
 			# Store sent snapshot; baseline advances on ACK
@@ -290,10 +313,12 @@ func _server_tick():
 					"type": MessageTypes.Binary.FULL_SNAPSHOT,
 					"tick": _tick,
 					"entities": current_snap.to_entity_array(),
+					"enemy_entities": current_snap.to_enemy_entity_array(),
 				}
 				ws.send(NetMessage.encode(full_msg))
 			else:
 				var delta = Snapshot.diff(baseline, current_snap)
+				var enemy_delta = Snapshot.diff_enemies(baseline, current_snap)
 				# Always send deltas, even empty ones, so the client receives a
 				# consistent tick stream. Without this, the client can't distinguish
 				# "nothing changed" from "packet lost", causing the remote player
@@ -302,10 +327,25 @@ func _server_tick():
 					"type": MessageTypes.Binary.DELTA_SNAPSHOT,
 					"tick": _tick,
 					"entities": delta,
+					"enemy_entities": enemy_delta,
 				}
 				ws.send(NetMessage.encode(delta_msg))
 			# Store sent snapshot; baseline advances on ACK
 			_sent_snapshots[player_id][_tick] = snap_copy
+
+	# Send queued death events
+	for death_event in _death_events:
+		var death_msg = NetMessage.encode({
+			"type": MessageTypes.Binary.ENEMY_DIED,
+			"entity_id": death_event["entity_id"],
+			"position": death_event["position"],
+			"killer_id": death_event.get("killer_id", 0),
+		})
+		for peer_id in _peers:
+			var ws: WebSocketPeer = _peers[peer_id]
+			if ws.get_ready_state() == WebSocketPeer.STATE_OPEN:
+				ws.send(death_msg)
+	_death_events.clear()
 
 
 func _check_zombies() -> void:
@@ -328,4 +368,14 @@ func _build_current_snapshot() -> Snapshot:
 	for player_id in _player_entities:
 		var player: PlayerEntity = _player_entities[player_id]
 		snap.entities[player_id] = player.to_snapshot_data()
+	for enemy in _enemy_system.get_all_enemies():
+		snap.enemy_entities[enemy.entity_id] = enemy.to_snapshot_data()
 	return snap
+
+
+func _on_enemy_died(event: Dictionary) -> void:
+	_death_events.append(event)
+
+
+func get_enemy_system() -> EnemySystem:
+	return _enemy_system

@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="MovementParams" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://shared/movement/movement_params.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+top_speed = 200.0
+accel = 1800.0
+friction = 18.0
+dodge_speed = 700.0
+dodge_duration = 0.2
+dodge_cooldown = 0.7
+dodge_iframe_duration = 0.2

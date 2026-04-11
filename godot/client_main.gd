@@ -1,16 +1,19 @@
 extends Node
 
 var _net_client: NetClient
+var _input_provider: InputProvider
 var _world_view: Node2D
 var _connection_ui: CanvasLayer
 var _local_player: PlayerEntity = null
 var _remote_proxies: Dictionary = {}  # player_id -> StaticBody2D
+var _enemy_proxies: Dictionary = {}  # entity_id -> StaticBody2D
 
 
 func _ready():
 	_net_client = $NetClient
 	_world_view = $WorldView
 	_connection_ui = $ConnectionUI
+	_input_provider = KeyboardMouseInputProvider.new(get_viewport())
 
 	_world_view.initialize(_net_client)
 	_connection_ui.connect_requested.connect(_on_connect_requested)
@@ -50,12 +53,21 @@ func _on_connected(player_id: int):
 	_local_player.initialize(player_id, MessageTypes.SPAWN_POSITION)
 	add_child(_local_player)
 	_net_client.set_local_player(_local_player)
+	_net_client.enemy_snapshot_updated.connect(_on_enemy_snapshot)
 
 
 func _process(_delta: float):
 	if _net_client.is_server_connected():
-		_net_client.input_direction = Input.get_vector("move_left", "move_right", "move_up", "move_down")
+		var player_pos = _net_client.get_local_player_position()
+		if player_pos == null:
+			player_pos = Vector2.ZERO
+		_input_provider.poll(player_pos)
+		_net_client.input_direction = _input_provider.move_direction
+		_net_client.aim_direction = _input_provider.aim_direction
+		if _input_provider.consume_dodge_press():
+			_net_client.dodge_pressed_latch = true
 		_update_remote_proxies()
+		_update_enemy_proxies()
 
 
 func _on_player_joined(player_id: int, spawn_position: Vector2):
@@ -85,6 +97,9 @@ func _on_disconnected():
 	for proxy in _remote_proxies.values():
 		proxy.queue_free()
 	_remote_proxies.clear()
+	for proxy in _enemy_proxies.values():
+		proxy.queue_free()
+	_enemy_proxies.clear()
 
 
 func _add_remote_proxy(player_id: int, pos: Vector2) -> void:
@@ -114,3 +129,45 @@ func _update_remote_proxies() -> void:
 		var pos = _net_client.get_interpolated_position(player_id)
 		if pos != null:
 			_remote_proxies[player_id].position = pos
+
+
+func _on_enemy_snapshot(enemy_entities: Dictionary) -> void:
+	for eid in enemy_entities:
+		var ent = enemy_entities[eid]
+		if ent["state"] == 0:  # SPAWNING — no collision
+			continue
+		if not _enemy_proxies.has(eid):
+			_add_enemy_proxy(eid, ent["position"])
+
+	for eid in _enemy_proxies.keys():
+		if not enemy_entities.has(eid) or enemy_entities[eid]["state"] == 0:
+			_remove_enemy_proxy(eid)
+
+
+func _add_enemy_proxy(entity_id: int, pos: Vector2) -> void:
+	if _enemy_proxies.has(entity_id):
+		return
+	var body = StaticBody2D.new()
+	body.collision_layer = 4  # layer 3 (enemy)
+	body.collision_mask = 0   # proxies don't detect anything
+	var collision = CollisionShape2D.new()
+	var shape = RectangleShape2D.new()
+	shape.size = Vector2(12, 12)
+	collision.shape = shape
+	body.add_child(collision)
+	body.position = pos
+	add_child(body)
+	_enemy_proxies[entity_id] = body
+
+
+func _remove_enemy_proxy(entity_id: int) -> void:
+	if _enemy_proxies.has(entity_id):
+		_enemy_proxies[entity_id].queue_free()
+		_enemy_proxies.erase(entity_id)
+
+
+func _update_enemy_proxies() -> void:
+	for eid in _enemy_proxies:
+		var data = _net_client.get_interpolated_enemy(eid)
+		if data != null:
+			_enemy_proxies[eid].position = data["position"]

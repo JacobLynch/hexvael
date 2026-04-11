@@ -6,6 +6,8 @@ signal disconnected()
 signal snapshot_received(tick: int, entities: Array)
 signal player_joined(player_id: int, spawn_position: Vector2)
 signal player_left(player_id: int)
+signal enemy_snapshot_updated(enemy_entities: Dictionary)
+signal enemy_died_received(event: Dictionary)
 
 var _ws := WebSocketPeer.new()
 var _connected: bool = false
@@ -14,13 +16,15 @@ var _server_tick: int = 0
 
 # Client-side prediction state
 var _input_seq: int = 0
-var _pending_inputs: Array = []  # { seq, direction }
+var _pending_inputs: Array = []  # { input_seq, move_direction, aim_direction, dodge_pressed }
 var _local_player: PlayerEntity = null
 
 # Interpolation state: two most recent snapshots for remote entities
 var _snapshot_prev: Snapshot = null
 var _snapshot_curr: Snapshot = null
 var _snapshot_time: float = 0.0  # Time since _snapshot_curr arrived
+var _enemy_prev: Dictionary = {}  # entity_id -> snapshot data
+var _enemy_curr: Dictionary = {}  # entity_id -> snapshot data
 
 # Max remote interpolation t — allows brief extrapolation past the latest snapshot
 # to cover network jitter, preventing the freeze-then-jump stutter.
@@ -38,6 +42,12 @@ var _input_timer: float = 0.0
 
 # Direction set by caller each frame (view/input layer)
 var input_direction: Vector2 = Vector2.ZERO
+var aim_direction: Vector2 = Vector2.RIGHT  # set by caller each frame
+# Edge-triggered dodge latch. Set to true by the view layer on the display frame
+# the dodge key is pressed; cleared by _send_input when the next tick fires.
+# This bridges the display-rate-to-tick-rate cadence gap so a dodge press that
+# lands between two tick boundaries is never dropped and never double-fires.
+var dodge_pressed_latch: bool = false
 
 
 func connect_to_server(address: String, port: int) -> Error:
@@ -63,10 +73,19 @@ func _process(delta: float):
 			else:
 				_handle_binary_message(packet)
 
-		# Frame-rate prediction: run physics every frame for instant response
+		# Frame-rate prediction: run canonical advance() at display framerate.
+		# dt-independent math means client and server produce the same result.
 		if _local_player != null:
-			_local_player.apply_input(input_direction)
-			_local_player.move_delta(delta)
+			_local_player.apply_input({
+				"move_direction": input_direction,
+				"aim_direction": aim_direction,
+			})
+			# Don't pass dodge_pressed via apply_input — it's handled directly below
+			# so that prediction kicks off the dodge exactly once per latch-set state,
+			# and _send_input clears the latch at tick rate.
+			if dodge_pressed_latch and _local_player.can_dodge():
+				_local_player.start_dodge()  # client predicts dodge immediately
+			_local_player.advance(delta)
 
 		# Send input at tick rate (network bandwidth stays at 20Hz)
 		_input_timer += delta
@@ -115,6 +134,14 @@ func _handle_binary_message(bytes: PackedByteArray):
 			_apply_full_snapshot(msg)
 		MessageTypes.Binary.DELTA_SNAPSHOT:
 			_apply_delta_snapshot(msg)
+		MessageTypes.Binary.ENEMY_DIED:
+			var event = {
+				"entity_id": msg["entity_id"],
+				"position": msg["position"],
+				"killer_id": msg["killer_id"],
+			}
+			EventBus.enemy_died.emit(event)
+			enemy_died_received.emit(event)
 
 
 func _apply_full_snapshot(msg: Dictionary):
@@ -129,6 +156,16 @@ func _apply_full_snapshot(msg: Dictionary):
 
 	_reconcile_local_player(snap)
 	_send_ack(msg["tick"])
+
+	# Enemy entities
+	_enemy_prev = {}
+	_enemy_curr = {}
+	for ent in msg.get("enemy_entities", []):
+		var eid = ent["entity_id"]
+		_enemy_prev[eid] = ent.duplicate()
+		_enemy_curr[eid] = ent.duplicate()
+	enemy_snapshot_updated.emit(_enemy_curr)
+
 	snapshot_received.emit(snap.tick, msg["entities"])
 
 
@@ -143,6 +180,17 @@ func _apply_delta_snapshot(msg: Dictionary):
 
 	_reconcile_local_player(_snapshot_curr)
 	_send_ack(msg["tick"])
+
+	# Enemy delta
+	_enemy_prev = _enemy_curr.duplicate()
+	for ent in msg.get("enemy_entities", []):
+		var eid: int = ent["entity_id"]
+		if ent["state"] == MessageTypes.EnemyFlags.REMOVED:
+			_enemy_curr.erase(eid)
+		else:
+			_enemy_curr[eid] = ent.duplicate()
+	enemy_snapshot_updated.emit(_enemy_curr)
+
 	snapshot_received.emit(_snapshot_curr.tick, msg["entities"])
 
 
@@ -166,21 +214,25 @@ func _send_input():
 
 	_input_seq += 1
 
-	# Store for reconciliation (direction only — position is continuous now)
-	_pending_inputs.append({
-		"seq": _input_seq,
-		"direction": input_direction,
-	})
+	var dodge = dodge_pressed_latch
+	dodge_pressed_latch = false  # consume once per tick send
 
-	# Cap pending inputs to prevent unbounded growth during network disruption
+	var input = {
+		"input_seq": _input_seq,
+		"move_direction": input_direction,
+		"aim_direction": aim_direction,
+		"dodge_pressed": dodge,
+	}
+	_pending_inputs.append(input)
 	if _pending_inputs.size() > MAX_PENDING_INPUTS:
 		_pending_inputs = _pending_inputs.slice(-MAX_PENDING_INPUTS)
 
-	# Send to server
 	var msg = {
 		"type": MessageTypes.Binary.PLAYER_INPUT,
 		"tick": _server_tick,
-		"direction": input_direction,
+		"move_direction": input_direction,
+		"aim_direction": aim_direction,
+		"dodge_pressed": dodge,
 		"input_seq": _input_seq,
 	}
 	_ws.send(NetMessage.encode(msg))
@@ -200,16 +252,37 @@ func _reconcile_local_player(snap: Snapshot):
 	var visual_before: Vector2 = _local_player.position + _visual_offset
 
 	# Discard predictions the server has already processed
-	while _pending_inputs.size() > 0 and _pending_inputs[0]["seq"] <= server_seq:
+	while _pending_inputs.size() > 0 and _pending_inputs[0]["input_seq"] <= server_seq:
 		_pending_inputs.pop_front()
 
-	# Snap to server authoritative position
+	# Restore authoritative state before replay
 	_local_player.position = server_pos
+	_local_player.velocity = server_data.get("velocity", Vector2.ZERO)
+	_local_player.aim_direction = server_data.get("aim_direction", Vector2.RIGHT)
+	_local_player.state = server_data.get("state", 0)
+	_local_player.dodge_time_remaining = server_data.get("dodge_time_remaining", 0.0)
+	_local_player.collision_count = server_data.get("collision_count", 0)
+	_local_player.last_collision_normal = server_data.get("last_collision_normal", Vector2.ZERO)
+	# dodge_cooldown_remaining is not in the snapshot; if the server says we're
+	# past a dodge, cooldown is implicit in server state. Leave local cooldown.
+	# If currently dodging, derive dodge_direction from velocity so the next
+	# replayed tick continues in the server-authoritative direction rather than
+	# overriding with the client's stale direction * dodge_speed.
+	if _local_player.state == PlayerMovementState.DODGING:
+		var v: Vector2 = _local_player.velocity
+		if v.length_squared() > 0.01:
+			_local_player.dodge_direction = v.normalized()
 
-	# Replay unacknowledged inputs at tick delta (matching server simulation)
+	# Replay unacknowledged inputs through the canonical advance function,
+	# using tick interval as dt to match how the server processed them.
+	# Suppress EventBus emissions during replay — view-side juice (FootstepDust,
+	# WallBump, DodgeTrail, screen shake) must not fire once per replayed input.
+	var tick_dt: float = MessageTypes.TICK_INTERVAL_MS / 1000.0
+	_local_player._suppress_events = true
 	for pending in _pending_inputs:
-		_local_player.apply_input(pending["direction"])
-		_local_player.tick()
+		_local_player.apply_input(pending)
+		_local_player.advance(tick_dt)
+	_local_player._suppress_events = false
 
 	# Visual offset: smoothly blend from old visual position to new logical position
 	var correction: Vector2 = visual_before - _local_player.position
@@ -228,7 +301,7 @@ func _reconcile_local_player(snap: Snapshot):
 
 func get_interpolated_position(entity_id: int) -> Variant:
 	if entity_id == _local_player_id:
-		return null  # Local player uses prediction, not interpolation
+		return null
 
 	if _snapshot_prev == null or _snapshot_curr == null:
 		return null
@@ -236,22 +309,83 @@ func get_interpolated_position(entity_id: int) -> Variant:
 	if not _snapshot_curr.entities.has(entity_id):
 		return null
 
-	var curr_pos: Vector2 = _snapshot_curr.entities[entity_id]["position"]
+	var curr = _snapshot_curr.entities[entity_id]
+	var curr_pos: Vector2 = curr["position"]
 
 	if not _snapshot_prev.entities.has(entity_id):
-		return curr_pos  # New entity, no interpolation yet
+		return curr_pos
 
-	var prev_pos: Vector2 = _snapshot_prev.entities[entity_id]["position"]
+	var prev = _snapshot_prev.entities[entity_id]
+	var prev_pos: Vector2 = prev["position"]
 
 	var tick_interval = MessageTypes.TICK_INTERVAL_MS / 1000.0
 	var t = clampf(_snapshot_time / tick_interval, 0.0, MAX_REMOTE_INTERP)
-	return prev_pos.lerp(curr_pos, t)
+
+	if t <= 1.0:
+		# Within interpolation window — lerp between snapshots
+		return prev_pos.lerp(curr_pos, t)
+	else:
+		# Extrapolate forward using current snapshot velocity.
+		# Fall back to positional delta as implied velocity when the snapshot
+		# does not carry an explicit velocity field (e.g. in tests or older server builds).
+		var snap_vel: Vector2 = curr.get("velocity", (curr_pos - prev_pos) / tick_interval)
+		var extra_time = (t - 1.0) * tick_interval
+		return curr_pos + snap_vel * extra_time
+
+
+func get_interpolated_enemy(entity_id: int) -> Variant:
+	if not _enemy_curr.has(entity_id):
+		return null
+
+	var curr = _enemy_curr[entity_id]
+	if not _enemy_prev.has(entity_id):
+		return curr  # New enemy, no interpolation
+
+	var prev = _enemy_prev[entity_id]
+	var tick_interval = MessageTypes.TICK_INTERVAL_MS / 1000.0
+	var t = clampf(_snapshot_time / tick_interval, 0.0, MAX_REMOTE_INTERP)
+
+	var result = curr.duplicate()
+	result["position"] = prev["position"].lerp(curr["position"], t)
+	result["facing"] = prev["facing"].lerp(curr["facing"], t)
+	if result["facing"].length_squared() > 0.0:
+		result["facing"] = result["facing"].normalized()
+	return result
+
+
+func get_enemy_ids() -> Array:
+	return _enemy_curr.keys()
 
 
 func get_local_player_position() -> Variant:
 	if _local_player == null:
 		return null
 	return _local_player.position
+
+
+## Returns the local player's predicted aim direction (unit vector), or null if no local player.
+func get_local_player_aim_direction() -> Variant:
+	if _local_player == null: return null
+	return _local_player.aim_direction
+
+
+## Returns the local player's current movement state (PlayerMovementState constant), or null.
+func get_local_player_state() -> Variant:
+	if _local_player == null: return null
+	return _local_player.state
+
+
+## Returns the local player's current velocity vector, or null.
+func get_local_player_velocity() -> Variant:
+	if _local_player == null: return null
+	return _local_player.velocity
+
+
+## Returns a remote entity's snapshot data dict (read-only), or null if not present.
+func get_remote_entity_snapshot(entity_id: int) -> Variant:
+	if _snapshot_curr == null: return null
+	if not _snapshot_curr.entities.has(entity_id): return null
+	return _snapshot_curr.entities[entity_id]
 
 
 func get_visual_offset() -> Vector2:

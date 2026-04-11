@@ -15,6 +15,17 @@
 - WebSocket only — never ENet, required for browser export
 - Web primary export target, Desktop secondary
 - Headless Godot server, hostable anywhere
+- Godot binary: `/Users/jacob/Downloads/Godot.app/Contents/MacOS/Godot`
+
+### Godot class cache
+
+After adding or renaming any `class_name` type, run:
+
+```bash
+cd godot && /Users/jacob/Downloads/Godot.app/Contents/MacOS/Godot --headless --import
+```
+
+This rebuilds `.godot/global_script_class_cache.cfg` so the engine resolves new types. Without this, headless test runs and game launches fail with "Could not find type" errors. Always run this after creating new `.gd` files with `class_name`, after rebasing branches that introduce new types, or before running tests/launching the game.
 
 ---
 
@@ -44,9 +55,11 @@ Update the DEVLOG.md with a description of the changes when you are asked to cre
 ### One RNG instance only
 
 - Singleton: `RNG` autoload in `/autoloads/rng.gd`
-- Never call `randf()`, `randi()`, or `RandomNumberGenerator.new()` anywhere else
+- Never call `randf()`, `randi()`, or `RandomNumberGenerator.new()` anywhere else in `/simulation/`
 - Always use `RNG.next_float()`, `RNG.next_int()` etc.
 - Violating this breaks determinism and server authority
+
+**Exception — `/view/` may use `randf()` for purely visual randomness** (e.g. screen shake jitter, particle scatter). Visual effects are not part of the deterministic simulation and must not drain the shared RNG stream. Never use `RNG.*` in `/view/`; always use the Godot built-in `randf()`/`randi()` there.
 
 ### Events carry full context
 
@@ -121,6 +134,29 @@ If you can't express a behavior in dt-independent form, it belongs in a layer th
 Prediction on the client and authoritative simulation on the server must call the **same function**, not reimplementations of it. One canonical `advance(dt)` per entity, one canonical system driver. Server calls it at tick rate; client calls it every frame for prediction and again during reconciliation to replay pending inputs. Never fork "client prediction logic" from "server logic" — the moment they diverge, the local player rubber-bands every snapshot.
 
 Rule of thumb: if a movement, combat, or physics behavior appears anywhere on the client, it must be calling the same `/simulation` code the server runs. View code reads state and renders it; it never re-implements simulation.
+
+### View effects must work for both local and remote entities
+
+Simulation events (`player_moved`, `player_collided`, `player_dodge_started`, etc.) only emit on the client that runs the sim. For the local player that's every client (via prediction); for remote players it's only the server — which has no view. View-side effect listeners (particles, trails, screen shake) must therefore work for **all** entities, not just the local player.
+
+For each effect, ask: *"does this event fire for remote players on this client?"* If not, fix it one of three ways in `WorldView._process`:
+
+1. **State diff** — for persistent state (e.g. DODGING). Track previous state per entity; emit synthetic event only on the frame of transition.
+2. **Snapshot-driven synthesis** — for continuous values (e.g. velocity → footstep dust). Read the field from the snapshot dict each frame and emit if above threshold.
+3. **Counter + auxiliary field in snapshot** — for momentary events (e.g. wall collision). The server increments a u8 counter in the entity snapshot and stores the event's side data (normal, etc.). `WorldView` detects any change in the counter and emits a synthetic event with the side data.
+
+```gdscript
+# Pattern 3 — momentary event detection (WorldView._process remote branch)
+var collision_count: int = ent.get("collision_count", 0)
+var prev_count: int = _prev_remote_collision_count.get(player_id, collision_count)
+if collision_count != prev_count:
+    EventBus.player_collided.emit({ "entity_id": player_id, ... })
+_prev_remote_collision_count[player_id] = collision_count
+```
+
+The local player's `PlayerEntity.advance()` emits its own events naturally — don't also synthesize for the local entity (skip the synthesis branch when `player_id == _net_client.get_local_player_id()`).
+
+Counter fields increment even when `_suppress_events` is true (during reconciliation replay) so client and server stay in sync. Never gate the counter increment on `_suppress_events`.
 
 ---
 

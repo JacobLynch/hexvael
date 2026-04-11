@@ -16,3 +16,6 @@ func next_int(from: int, to: int) -> int:
 
 func next_bool(probability: float = 0.5) -> bool:
     return _rng.randf() < probability
+
+func next_float_range(from: float, to: float) -> float:
+    return from + _rng.randf() * (to - from)

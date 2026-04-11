@@ -3,22 +3,67 @@ extends GutTest
 var NetMessage = preload("res://simulation/network/net_message.gd")
 
 
-func test_encode_decode_player_input():
+func test_player_input_round_trip():
 	var msg = {
 		"type": MessageTypes.Binary.PLAYER_INPUT,
 		"tick": 42,
-		"direction": Vector2(0.707, -0.707),
-		"input_seq": 15,
+		"move_direction": Vector2(0.6, -0.8),
+		"aim_direction": Vector2(1.0, 0.0),
+		"input_seq": 1234,
 	}
 	var bytes = NetMessage.encode(msg)
-	assert_eq(bytes.size(), MessageTypes.Layout.INPUT_SIZE, "Input message should be %d bytes" % MessageTypes.Layout.INPUT_SIZE)
-
+	assert_eq(bytes.size(), MessageTypes.Layout.INPUT_SIZE)
 	var decoded = NetMessage.decode_binary(bytes)
-	assert_eq(decoded["type"], MessageTypes.Binary.PLAYER_INPUT)
 	assert_eq(decoded["tick"], 42)
-	assert_almost_eq(decoded["direction"].x, 0.707, 0.001)
-	assert_almost_eq(decoded["direction"].y, -0.707, 0.001)
-	assert_eq(decoded["input_seq"], 15)
+	assert_almost_eq(decoded["move_direction"].x, 0.6, 0.001)
+	assert_almost_eq(decoded["move_direction"].y, -0.8, 0.001)
+	assert_almost_eq(decoded["aim_direction"].x, 1.0, 0.001)
+	assert_almost_eq(decoded["aim_direction"].y, 0.0, 0.001)
+	assert_eq(decoded["dodge_pressed"], false)
+	assert_eq(decoded["input_seq"], 1234)
+
+
+func test_player_input_round_trip_with_dodge():
+	var msg = {
+		"type": MessageTypes.Binary.PLAYER_INPUT,
+		"tick": 42,
+		"move_direction": Vector2(0.6, -0.8),
+		"aim_direction": Vector2(1.0, 0.0),
+		"dodge_pressed": true,
+		"input_seq": 1234,
+	}
+	var bytes = NetMessage.encode(msg)
+	assert_eq(bytes.size(), MessageTypes.Layout.INPUT_SIZE)
+	var decoded = NetMessage.decode_binary(bytes)
+	assert_eq(decoded["dodge_pressed"], true)
+	assert_eq(decoded["input_seq"], 1234)
+
+
+func test_snapshot_round_trip_with_dodge_state():
+	var msg = {
+		"type": MessageTypes.Binary.FULL_SNAPSHOT,
+		"tick": 100,
+		"entities": [{
+			"entity_id": 1,
+			"position": Vector2(240.0, 160.0),
+			"flags": MessageTypes.EntityFlags.MOVING | MessageTypes.EntityFlags.DODGING,
+			"last_input_seq": 55,
+			"velocity": Vector2(700.0, 0.0),
+			"aim_direction": Vector2(1.0, 0.0),
+			"state": 1,
+			"dodge_time_remaining": 0.15,
+			"collision_count": 0,
+			"last_collision_normal": Vector2.ZERO,
+		}],
+	}
+	var bytes = NetMessage.encode(msg)
+	var decoded = NetMessage.decode_binary(bytes)
+	var ent = decoded["entities"][0]
+	assert_eq(ent["entity_id"], 1)
+	assert_almost_eq(ent["velocity"].x, 700.0, 0.01)
+	assert_eq(ent["state"], 1)
+	assert_almost_eq(ent["dodge_time_remaining"], 0.15, 0.001)
+	assert_eq(ent["flags"] & MessageTypes.EntityFlags.DODGING, MessageTypes.EntityFlags.DODGING)
 
 
 func test_encode_decode_snapshot_ack():
@@ -36,8 +81,8 @@ func test_encode_decode_snapshot_ack():
 
 func test_encode_decode_full_snapshot():
 	var entities = [
-		{"entity_id": 1, "position": Vector2(100.5, 200.75), "flags": MessageTypes.EntityFlags.MOVING, "last_input_seq": 42},
-		{"entity_id": 2, "position": Vector2(300.0, 400.0), "flags": MessageTypes.EntityFlags.NONE, "last_input_seq": 0},
+		{"entity_id": 1, "position": Vector2(100.5, 200.75), "flags": MessageTypes.EntityFlags.MOVING, "last_input_seq": 42, "velocity": Vector2.ZERO, "aim_direction": Vector2.RIGHT, "state": 0, "dodge_time_remaining": 0.0, "collision_count": 0, "last_collision_normal": Vector2.ZERO},
+		{"entity_id": 2, "position": Vector2(300.0, 400.0), "flags": MessageTypes.EntityFlags.NONE, "last_input_seq": 0, "velocity": Vector2.ZERO, "aim_direction": Vector2.RIGHT, "state": 0, "dodge_time_remaining": 0.0, "collision_count": 0, "last_collision_normal": Vector2.ZERO},
 	]
 	var msg = {
 		"type": MessageTypes.Binary.FULL_SNAPSHOT,
@@ -45,7 +90,8 @@ func test_encode_decode_full_snapshot():
 		"entities": entities,
 	}
 	var bytes = NetMessage.encode(msg)
-	var expected_size = MessageTypes.Layout.SNAPSHOT_HEADER_SIZE + (2 * MessageTypes.Layout.ENTITY_SIZE)
+	# +2 for the enemy_count u16 appended after the player section
+	var expected_size = MessageTypes.Layout.SNAPSHOT_HEADER_SIZE + (2 * MessageTypes.Layout.ENTITY_SIZE) + 2
 	assert_eq(bytes.size(), expected_size)
 
 	var decoded = NetMessage.decode_binary(bytes)
@@ -62,7 +108,7 @@ func test_encode_decode_full_snapshot():
 
 func test_encode_decode_delta_snapshot():
 	var entities = [
-		{"entity_id": 1, "position": Vector2(105.0, 205.0), "flags": MessageTypes.EntityFlags.MOVING, "last_input_seq": 7},
+		{"entity_id": 1, "position": Vector2(105.0, 205.0), "flags": MessageTypes.EntityFlags.MOVING, "last_input_seq": 7, "velocity": Vector2.ZERO, "aim_direction": Vector2.RIGHT, "state": 0, "dodge_time_remaining": 0.0, "collision_count": 0, "last_collision_normal": Vector2.ZERO},
 	]
 	var msg = {
 		"type": MessageTypes.Binary.DELTA_SNAPSHOT,
@@ -135,7 +181,8 @@ func test_empty_snapshot():
 		"entities": [],
 	}
 	var bytes = NetMessage.encode(msg)
-	assert_eq(bytes.size(), MessageTypes.Layout.SNAPSHOT_HEADER_SIZE)
+	# +2 for the enemy_count u16 appended after the player section
+	assert_eq(bytes.size(), MessageTypes.Layout.SNAPSHOT_HEADER_SIZE + 2)
 
 	var decoded = NetMessage.decode_binary(bytes)
 	assert_eq(decoded["entities"].size(), 0)
@@ -146,7 +193,8 @@ func test_input_seq_supports_u32_range():
 	var msg = {
 		"type": MessageTypes.Binary.PLAYER_INPUT,
 		"tick": 1,
-		"direction": Vector2.ZERO,
+		"move_direction": Vector2.ZERO,
+		"aim_direction": Vector2.RIGHT,
 		"input_seq": large_seq,
 	}
 	var bytes = NetMessage.encode(msg)
@@ -157,7 +205,7 @@ func test_input_seq_supports_u32_range():
 func test_last_input_seq_supports_u32_range():
 	var large_seq: int = 100000
 	var entities = [
-		{"entity_id": 1, "position": Vector2.ZERO, "flags": 0, "last_input_seq": large_seq},
+		{"entity_id": 1, "position": Vector2.ZERO, "flags": 0, "last_input_seq": large_seq, "velocity": Vector2.ZERO, "aim_direction": Vector2.RIGHT, "state": 0, "dodge_time_remaining": 0.0, "collision_count": 0, "last_collision_normal": Vector2.ZERO},
 	]
 	var msg = {
 		"type": MessageTypes.Binary.FULL_SNAPSHOT,
@@ -167,3 +215,35 @@ func test_last_input_seq_supports_u32_range():
 	var bytes = NetMessage.encode(msg)
 	var decoded = NetMessage.decode_binary(bytes)
 	assert_eq(decoded["entities"][0]["last_input_seq"], large_seq)
+
+
+func test_snapshot_round_trip_collision_fields():
+	# Verifies that collision_count (u8) and last_collision_normal (2×f32) survive
+	# the binary encode/decode cycle correctly.
+	var entities = [
+		{
+			"entity_id": 3,
+			"position": Vector2(50.0, 50.0),
+			"flags": 0,
+			"last_input_seq": 0,
+			"velocity": Vector2(150.0, 0.0),
+			"aim_direction": Vector2.RIGHT,
+			"state": 0,
+			"dodge_time_remaining": 0.0,
+			"collision_count": 7,
+			"last_collision_normal": Vector2(-1.0, 0.0),
+		},
+	]
+	var msg = {
+		"type": MessageTypes.Binary.FULL_SNAPSHOT,
+		"tick": 42,
+		"entities": entities,
+	}
+	var bytes = NetMessage.encode(msg)
+	# +2 for the enemy_count u16 appended after the player section
+	assert_eq(bytes.size(), MessageTypes.Layout.SNAPSHOT_HEADER_SIZE + MessageTypes.Layout.ENTITY_SIZE + 2)
+	var decoded = NetMessage.decode_binary(bytes)
+	var ent = decoded["entities"][0]
+	assert_eq(ent["collision_count"], 7)
+	assert_almost_eq(ent["last_collision_normal"].x, -1.0, 0.001)
+	assert_almost_eq(ent["last_collision_normal"].y, 0.0, 0.001)
