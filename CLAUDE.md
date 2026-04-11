@@ -15,6 +15,17 @@
 - WebSocket only — never ENet, required for browser export
 - Web primary export target, Desktop secondary
 - Headless Godot server, hostable anywhere
+- Godot binary: `/Users/jacob/Downloads/Godot.app/Contents/MacOS/Godot`
+
+### Godot class cache
+
+After adding or renaming any `class_name` type, run:
+
+```bash
+cd godot && /Users/jacob/Downloads/Godot.app/Contents/MacOS/Godot --headless --import
+```
+
+This rebuilds `.godot/global_script_class_cache.cfg` so the engine resolves new types. Without this, headless test runs and game launches fail with "Could not find type" errors. Always run this after creating new `.gd` files with `class_name`, after rebasing branches that introduce new types, or before running tests/launching the game.
 
 ---
 
