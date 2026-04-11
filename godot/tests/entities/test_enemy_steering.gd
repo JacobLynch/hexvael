@@ -63,6 +63,37 @@ func test_arrival_slows_near_target():
 	assert_lt(close_speed, far_speed, "Should move slower near target")
 
 
+func test_min_approach_distance_stops_enemy():
+	var params = EnemyParams.new()
+	params.min_approach_distance = 8.0
+	params.arrival_radius = 20.0
+	var enemy = _make_enemy(Vector2(100, 100), params)
+	var player = _make_player(1, Vector2(105, 100))  # 5px away, within min_approach
+	enemy.target_player_id = 1
+	enemy.facing = Vector2.RIGHT
+	enemy.advance(0.05, [player], [])
+	assert_almost_eq(enemy.velocity.length(), 0.0, 0.1, "Should stop within min approach distance")
+
+
+func test_separation_overcomes_seek_at_close_range():
+	# Two enemies close together, both seeking same distant player.
+	# Separation should deflect e1 away from e2.
+	var params = EnemyParams.new()
+	params.separation_radius = 44.0
+	params.separation_weight = 1.5
+	var e1 = _make_enemy(Vector2(100, 100), params)
+	var player = _make_player(1, Vector2(300, 100))  # player far to the right
+	e1.target_player_id = 1
+	e1.facing = Vector2.RIGHT
+
+	# Neighbor directly below, 10px away
+	var e2 = _make_enemy(Vector2(100, 110), params)
+
+	e1.advance(0.05, [player], [e2])
+	# Separation should push e1 upward (away from e2 at y=110)
+	assert_lt(e1.velocity.y, 0.0, "Separation should push enemy away from neighbor")
+
+
 func test_turn_rate_lerps_facing():
 	var params = EnemyParams.new()
 	params.turn_rate = 4.0

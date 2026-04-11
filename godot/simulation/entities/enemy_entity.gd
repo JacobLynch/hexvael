@@ -111,7 +111,7 @@ func _advance_chasing(dt: float, players: Array, neighbors: Array) -> void:
 	# Seek direction
 	var seek_dir = (target.position - position).normalized()
 
-	# Separation
+	# Separation — ratio-based: full repulsion at d=0, zero at d=separation_radius
 	var separation_dir = Vector2.ZERO
 	for neighbor in neighbors:
 		if neighbor == self:
@@ -119,7 +119,7 @@ func _advance_chasing(dt: float, players: Array, neighbors: Array) -> void:
 		var offset = position - neighbor.position
 		var d = offset.length()
 		if d < _params.separation_radius and d > 0.0:
-			separation_dir += offset.normalized() / d
+			separation_dir += offset.normalized() * (1.0 - d / _params.separation_radius)
 
 	# Combine
 	var desired_dir = (seek_dir + separation_dir * _params.separation_weight)
@@ -133,8 +133,9 @@ func _advance_chasing(dt: float, players: Array, neighbors: Array) -> void:
 	if facing.length_squared() > 0.0:
 		facing = facing.normalized()
 
-	# Arrival
-	var speed_factor = clampf(dist_to_target / _params.arrival_radius, 0.0, 1.0)
+	# Arrival — stop at min_approach_distance
+	var approach_dist = dist_to_target - _params.min_approach_distance
+	var speed_factor = clampf(approach_dist / _params.arrival_radius, 0.0, 1.0)
 
 	# Apply
 	velocity = facing * actual_speed * speed_factor
