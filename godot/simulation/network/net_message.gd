@@ -48,12 +48,16 @@ static func decode_json(text: String) -> Variant:
 static func _encode_player_input(msg: Dictionary) -> PackedByteArray:
 	var buf = PackedByteArray()
 	buf.resize(MessageTypes.Layout.INPUT_SIZE)
-	var dir: Vector2 = msg["direction"]
+	var move_dir: Vector2 = msg["move_direction"]
+	var aim_dir: Vector2 = msg["aim_direction"]
 	buf.encode_u8(0, MessageTypes.Binary.PLAYER_INPUT)
 	buf.encode_u32(1, msg["tick"])
-	buf.encode_float(5, dir.x)
-	buf.encode_float(9, dir.y)
-	buf.encode_u32(13, msg["input_seq"])
+	buf.encode_float(5, move_dir.x)
+	buf.encode_float(9, move_dir.y)
+	buf.encode_float(13, aim_dir.x)
+	buf.encode_float(17, aim_dir.y)
+	buf.encode_u8(21, 1 if msg.get("dodge_pressed", false) else 0)
+	buf.encode_u32(22, msg["input_seq"])
 	return buf
 
 
@@ -63,8 +67,10 @@ static func _decode_player_input(bytes: PackedByteArray) -> Variant:
 	return {
 		"type": MessageTypes.Binary.PLAYER_INPUT,
 		"tick": bytes.decode_u32(1),
-		"direction": Vector2(bytes.decode_float(5), bytes.decode_float(9)),
-		"input_seq": bytes.decode_u32(13),
+		"move_direction": Vector2(bytes.decode_float(5), bytes.decode_float(9)),
+		"aim_direction": Vector2(bytes.decode_float(13), bytes.decode_float(17)),
+		"dodge_pressed": bytes.decode_u8(21) != 0,
+		"input_seq": bytes.decode_u32(22),
 	}
 
 
@@ -102,11 +108,23 @@ static func _encode_snapshot(msg: Dictionary) -> PackedByteArray:
 		var offset = header_size + i * entity_size
 		var ent = entities[i]
 		var pos: Vector2 = ent["position"]
+		var vel: Vector2 = ent.get("velocity", Vector2.ZERO)
+		var aim: Vector2 = ent.get("aim_direction", Vector2.RIGHT)
 		buf.encode_u16(offset, ent["entity_id"])
 		buf.encode_float(offset + 2, pos.x)
 		buf.encode_float(offset + 6, pos.y)
 		buf.encode_u8(offset + 10, ent["flags"])
 		buf.encode_u32(offset + 11, ent.get("last_input_seq", 0))
+		buf.encode_float(offset + 15, vel.x)
+		buf.encode_float(offset + 19, vel.y)
+		buf.encode_float(offset + 23, aim.x)
+		buf.encode_float(offset + 27, aim.y)
+		buf.encode_u8(offset + 31, ent.get("state", 0))
+		buf.encode_float(offset + 32, ent.get("dodge_time_remaining", 0.0))
+		buf.encode_u8(offset + 36, ent.get("collision_count", 0))
+		var cnorm: Vector2 = ent.get("last_collision_normal", Vector2.ZERO)
+		buf.encode_float(offset + 37, cnorm.x)
+		buf.encode_float(offset + 41, cnorm.y)
 	return buf
 
 
@@ -126,6 +144,12 @@ static func _decode_snapshot(bytes: PackedByteArray, type: int) -> Variant:
 			"position": Vector2(bytes.decode_float(offset + 2), bytes.decode_float(offset + 6)),
 			"flags": bytes.decode_u8(offset + 10),
 			"last_input_seq": bytes.decode_u32(offset + 11),
+			"velocity": Vector2(bytes.decode_float(offset + 15), bytes.decode_float(offset + 19)),
+			"aim_direction": Vector2(bytes.decode_float(offset + 23), bytes.decode_float(offset + 27)),
+			"state": bytes.decode_u8(offset + 31),
+			"dodge_time_remaining": bytes.decode_float(offset + 32),
+			"collision_count": bytes.decode_u8(offset + 36),
+			"last_collision_normal": Vector2(bytes.decode_float(offset + 37), bytes.decode_float(offset + 41)),
 		})
 	return {
 		"type": type,

@@ -18,34 +18,37 @@ func before_each():
 
 func test_process_inputs_applies_direction():
 	var inputs = [
-		{"input_seq": 1, "direction": Vector2(1.0, 0.0), "tick": 10},
+		{"input_seq": 1, "move_direction": Vector2(1.0, 0.0), "aim_direction": Vector2.RIGHT, "tick": 10},
 	]
 	_system.process_inputs_for_player(1, inputs)
-	assert_eq(_player.velocity, Vector2(PlayerEntity.SPEED, 0.0))
+	assert_eq(_player.move_input, Vector2(1.0, 0.0))
+	assert_eq(_player.aim_direction, Vector2.RIGHT)
 
 
 func test_process_multiple_inputs_applies_last():
 	var inputs = [
-		{"input_seq": 1, "direction": Vector2(1.0, 0.0), "tick": 10},
-		{"input_seq": 2, "direction": Vector2(0.0, -1.0), "tick": 10},
+		{"input_seq": 1, "move_direction": Vector2(1.0, 0.0), "aim_direction": Vector2.RIGHT, "tick": 10},
+		{"input_seq": 2, "move_direction": Vector2(0.0, -1.0), "aim_direction": Vector2.UP, "tick": 10},
 	]
 	_system.process_inputs_for_player(1, inputs)
-	# After processing both, velocity should reflect the last input
-	assert_eq(_player.velocity, Vector2(0.0, -PlayerEntity.SPEED))
+	# After processing both, move_input should reflect the last input
+	assert_eq(_player.move_input, Vector2(0.0, -1.0))
 
 
 func test_process_empty_inputs_keeps_last_velocity():
-	_player.apply_input(Vector2(1.0, 0.0))
+	_player.apply_input({"move_direction": Vector2(1.0, 0.0), "aim_direction": Vector2.RIGHT})
 	_system.process_inputs_for_player(1, [])
-	assert_eq(_player.velocity, Vector2(PlayerEntity.SPEED, 0.0))
+	assert_eq(_player.move_input, Vector2(1.0, 0.0))
 
 
-func test_tick_all_calls_move_and_slide():
-	_player.apply_input(Vector2(1.0, 0.0))
+func test_advance_all_moves_players():
+	_player.apply_input({"move_direction": Vector2(1.0, 0.0), "aim_direction": Vector2.RIGHT})
 	var pos_before = _player.position
-	_system.tick_all()
-	# After move_and_slide, position should have changed (no collision in test)
-	assert_ne(_player.position, pos_before, "Position should change after tick")
+	var tick_dt = MessageTypes.TICK_INTERVAL_MS / 1000.0
+	# Accel needs a few ticks to build up movement
+	for i in range(3):
+		_system.advance_all(tick_dt)
+	assert_ne(_player.position, pos_before, "Position should change after advance_all")
 
 
 func test_register_and_unregister_player():
@@ -56,8 +59,20 @@ func test_register_and_unregister_player():
 
 func test_updates_last_processed_seq():
 	var inputs = [
-		{"input_seq": 5, "direction": Vector2(1.0, 0.0), "tick": 10},
-		{"input_seq": 7, "direction": Vector2(0.0, 1.0), "tick": 10},
+		{"input_seq": 5, "move_direction": Vector2(1.0, 0.0), "aim_direction": Vector2.RIGHT, "tick": 10},
+		{"input_seq": 7, "move_direction": Vector2(0.0, 1.0), "aim_direction": Vector2.RIGHT, "tick": 10},
 	]
 	_system.process_inputs_for_player(1, inputs)
 	assert_eq(_player.last_processed_input_seq, 7)
+
+
+func test_apply_input_normalizes_aim_direction():
+	var inputs = [
+		{"input_seq": 1, "move_direction": Vector2.ZERO, "aim_direction": Vector2(3.0, 4.0), "tick": 10},
+	]
+	_system.process_inputs_for_player(1, inputs)
+	# Incoming aim was (3,4) which has length 5; expect it normalized to (0.6, 0.8)
+	assert_almost_eq(_player.aim_direction.length(), 1.0, 0.001,
+		"aim_direction should be normalized to unit length at ingest")
+	assert_almost_eq(_player.aim_direction.x, 0.6, 0.001)
+	assert_almost_eq(_player.aim_direction.y, 0.8, 0.001)

@@ -19,3 +19,9 @@ signal wave_ended(event: Dictionary)
 # Network
 signal player_connected(event: Dictionary)
 signal player_disconnected(event: Dictionary)
+
+# Movement
+signal player_dodge_started(event: Dictionary)   # entity_id, position, direction
+signal player_dodge_ended(event: Dictionary)     # entity_id
+signal player_collided(event: Dictionary)        # entity_id, position, normal, velocity
+signal player_moved(event: Dictionary)           # entity_id, position, velocity

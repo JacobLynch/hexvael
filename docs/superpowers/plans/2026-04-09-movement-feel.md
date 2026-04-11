@@ -206,7 +206,7 @@ git commit -m "Scaffold MovementParams Resource, PlayerMovementState enum, Event
 - Create: `godot/tests/entities/test_player_entity_advance.gd` — dt-independence canary + math tests
 - Modify: existing tests (`test_player_entity.gd`, `test_player_wall_collision.gd`, `test_player_player_collision.gd`, `test_movement_system.gd`, `test_net_client_movement.gd`) to match the new API
 
-**Note on input signature:** In this task `apply_input(direction: Vector2)` still takes a Vector2 (no dict yet). The dict expansion lands in Task 4. This keeps the refactor scoped.
+**Note on input signature:** In this task `apply_input(direction: Vector2)` still takes a Vector2 (no dict yet). The dict expansion lands in Task 3. This keeps the refactor scoped.
 
 - [ ] **Step 1: Write the failing dt-independence canary test**
 
@@ -321,7 +321,7 @@ func initialize(id: int, spawn_position: Vector2) -> void:
 
 
 # Ingest: called by MovementSystem when dequeuing inputs.
-# In Task 4 this signature expands to apply_input(Dictionary). For this task
+# In Task 3 this signature expands to apply_input(Dictionary). For this task
 # it still takes a Vector2 to keep the refactor scoped.
 func apply_input(direction: Vector2) -> void:
     move_input = direction

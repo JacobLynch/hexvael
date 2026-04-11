@@ -24,7 +24,9 @@ func before_each():
 	_client.set_local_player(_player)
 
 
-func _make_snapshot(player_id: int, pos: Vector2, last_seq: int) -> Snapshot:
+func _make_snapshot(player_id: int, pos: Vector2, last_seq: int,
+		velocity: Vector2 = Vector2.ZERO, aim: Vector2 = Vector2.RIGHT,
+		state: int = 0, dodge_tr: float = 0.0) -> Snapshot:
 	var snap = SnapshotScript.new()
 	snap.tick = 1
 	snap.entities[player_id] = {
@@ -32,6 +34,10 @@ func _make_snapshot(player_id: int, pos: Vector2, last_seq: int) -> Snapshot:
 		"position": pos,
 		"flags": 0,
 		"last_input_seq": last_seq,
+		"velocity": velocity,
+		"aim_direction": aim,
+		"state": state,
+		"dodge_time_remaining": dodge_tr,
 	}
 	return snap
 
@@ -229,3 +235,38 @@ func test_remote_extrapolation_capped_at_max():
 	var max_pos = Vector2(200.0, 100.0).lerp(Vector2(210.0, 100.0), NetClient.MAX_REMOTE_INTERP)
 	assert_almost_eq(pos.x, max_pos.x, 0.01,
 		"Remote extrapolation should cap at MAX_REMOTE_INTERP")
+
+
+func test_remote_extrapolation_uses_snapshot_velocity():
+	# Snapshot velocity (400 px/s) differs from positional delta (10px/tick = 200 px/s).
+	# At t = 1.4, extra_time = 0.4 * tick_interval = 0.02s.
+	# Velocity-based: 110 + 400 * 0.02 = 118.
+	# Delta-based:    110 + 200 * 0.02 = 114.
+	# Extrapolation must use snapshot velocity, not re-derive from positional delta.
+	var net = NetClientScript.new()
+	add_child_autofree(net)
+
+	var prev = SnapshotScript.new()
+	prev.tick = 1
+	prev.entities[2] = {
+		"entity_id": 2, "position": Vector2(100.0, 0.0), "flags": 0, "last_input_seq": 0,
+		"velocity": Vector2.ZERO, "aim_direction": Vector2.RIGHT,
+		"state": 0, "dodge_time_remaining": 0.0,
+	}
+	var curr = SnapshotScript.new()
+	curr.tick = 2
+	curr.entities[2] = {
+		"entity_id": 2, "position": Vector2(110.0, 0.0), "flags": 0, "last_input_seq": 0,
+		"velocity": Vector2(400.0, 0.0), "aim_direction": Vector2.RIGHT,
+		"state": 0, "dodge_time_remaining": 0.0,
+	}
+
+	net._snapshot_prev = prev
+	net._snapshot_curr = curr
+	# t = 1.4 → into extrapolation branch (t > 1.0)
+	net._snapshot_time = TICK_S * 1.4
+
+	var result = net.get_interpolated_position(2)
+	# Expected: 110 + 400 * (0.4 * TICK_S) = 110 + 400 * 0.02 = 118.0
+	assert_almost_eq(result.x, 118.0, 0.5,
+		"Extrapolation must use snapshot velocity (400 px/s) not positional delta (200 px/s)")

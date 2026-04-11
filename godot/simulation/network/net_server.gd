@@ -218,11 +218,12 @@ func _handle_binary_message(peer_id: int, bytes: PackedByteArray):
 
 	match msg["type"]:
 		MessageTypes.Binary.PLAYER_INPUT:
-			var dir: Vector2 = msg["direction"]
-			if not (is_finite(dir.x) and is_finite(dir.y)):
+			var move_dir: Vector2 = msg["move_direction"]
+			var aim_dir: Vector2 = msg["aim_direction"]
+			if not (is_finite(move_dir.x) and is_finite(move_dir.y) and is_finite(aim_dir.x) and is_finite(aim_dir.y)):
 				return  # Reject non-finite input
-			if dir.length_squared() > 2.0:  # Allow slightly over 1.0 for float imprecision
-				return  # Reject absurd values
+			if move_dir.length_squared() > 2.5 or aim_dir.length_squared() > 2.5:
+				return  # Reject absurd values; 2.5 gives float headroom above max diagonal (2.0)
 			_input_buffer.add_input(player_id, msg)
 		MessageTypes.Binary.SNAPSHOT_ACK:
 			_handle_snapshot_ack(player_id, msg["tick"])
@@ -256,7 +257,8 @@ func _server_tick():
 		_movement_system.process_inputs_for_player(player_id, inputs)
 
 	# Phase 3: Tick physics
-	_movement_system.tick_all()
+	var tick_dt = MessageTypes.TICK_INTERVAL_MS / 1000.0
+	_movement_system.advance_all(tick_dt)
 
 	# Phase 4-5: Build and send snapshots
 	var current_snap = _build_current_snapshot()

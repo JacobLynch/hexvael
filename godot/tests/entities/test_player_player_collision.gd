@@ -34,9 +34,9 @@ func test_local_player_stops_at_remote_proxy():
 	# Remote player proxy directly to the right
 	_remote_proxy = _create_proxy(Vector2(120.0, 160.0))
 
-	_local.apply_input(Vector2(1.0, 0.0))
+	_local.apply_input({"move_direction": Vector2(1.0, 0.0), "aim_direction": Vector2.RIGHT})
 	for i in range(20):
-		_local.tick()
+		_local.advance(TICK_S)
 
 	# Local player (12x12) and proxy (12x12) — they should collide.
 	# Player at x=100 moving right toward proxy at x=120.
@@ -52,9 +52,9 @@ func test_local_player_slides_along_remote_proxy():
 	# so the player deflects vertically while the proxy blocks direct overlap.
 	_remote_proxy = _create_proxy(Vector2(130.0, 160.0))
 
-	_local.apply_input(Vector2(1.0, 1.0).normalized())
+	_local.apply_input({"move_direction": Vector2(1.0, 1.0).normalized(), "aim_direction": Vector2.RIGHT})
 	for i in range(20):
-		_local.tick()
+		_local.advance(TICK_S)
 
 	# Player should have deflected downward — y must have changed
 	assert_gt(absf(_local.position.y - 160.0), 1.0,
