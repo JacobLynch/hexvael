@@ -26,6 +26,8 @@ var last_collision_normal: Vector2 = Vector2.ZERO
 # re-fire for every replayed input.
 var _suppress_events: bool = false
 
+var _cached_collision_radius: float = -1.0
+
 
 func initialize(id: int, spawn_position: Vector2) -> void:
 	player_id = id
@@ -158,6 +160,21 @@ func advance(dt: float) -> void:
 				"position": position,
 				"velocity": velocity,
 			})
+
+
+func get_collision_radius() -> float:
+	if _cached_collision_radius < 0.0:
+		var shape_node := $CollisionShape2D as CollisionShape2D
+		var shape := shape_node.shape
+		if shape is CircleShape2D:
+			_cached_collision_radius = (shape as CircleShape2D).radius
+		elif shape is RectangleShape2D:
+			var s := (shape as RectangleShape2D).size
+			_cached_collision_radius = max(s.x, s.y) / 2.0
+		else:
+			push_warning("PlayerEntity: unknown collision shape, defaulting to 16 px")
+			_cached_collision_radius = 16.0
+	return _cached_collision_radius
 
 
 func to_snapshot_data() -> Dictionary:

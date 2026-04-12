@@ -11,6 +11,7 @@ var actual_speed: float = 0.0
 var spawn_timer: float = 0.0
 var _wander_target: Vector2 = Vector2.ZERO
 var _params: EnemyParams = null
+var _cached_collision_radius: float = -1.0
 
 
 func initialize(id: int, spawn_position: Vector2, params: EnemyParams) -> void:
@@ -175,6 +176,21 @@ func _set_state(new_state: int) -> void:
 		"entity_id": entity_id, "old_state": old_state,
 		"new_state": new_state, "position": position,
 	})
+
+
+func get_collision_radius() -> float:
+	if _cached_collision_radius < 0.0:
+		var shape_node := $CollisionShape2D as CollisionShape2D
+		var shape := shape_node.shape
+		if shape is CircleShape2D:
+			_cached_collision_radius = (shape as CircleShape2D).radius
+		elif shape is RectangleShape2D:
+			var s := (shape as RectangleShape2D).size
+			_cached_collision_radius = max(s.x, s.y) / 2.0
+		else:
+			push_warning("EnemyEntity: unknown collision shape, defaulting to 16 px")
+			_cached_collision_radius = 16.0
+	return _cached_collision_radius
 
 
 func to_snapshot_data() -> Dictionary:
