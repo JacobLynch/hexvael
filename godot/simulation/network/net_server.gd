@@ -232,6 +232,7 @@ func _on_peer_disconnected(peer_id: int):
 	_pending_snapshot_sends.erase(player_id)
 	_rtt_samples.erase(player_id)
 	_player_position_history.drop_player(player_id)
+	_projectile_system._fire_cooldown.erase(player_id)
 	_player_to_peer.erase(player_id)
 	_peer_to_player.erase(peer_id)
 	_peers.erase(peer_id)
@@ -409,7 +410,10 @@ func _server_tick():
 				ws.send(death_msg)
 	_death_events.clear()
 
-	# Broadcast projectile spawn events collected during input routing.
+	# Broadcast projectile spawn and despawn events collected during this tick.
+	# NOTE: These events are broadcast AFTER snapshots in the same tick, so
+	# clients must handle events that arrive after the snapshot with the same
+	# tick number. This is consistent with how enemy_died events work.
 	for spawn_event in queued_spawn_events:
 		var spawn_msg: PackedByteArray = NetMessage.encode_projectile_spawned(spawn_event)
 		for peer_id in _peers:
@@ -419,6 +423,8 @@ func _server_tick():
 
 	# Broadcast projectile despawn events from this tick's advance().
 	for despawn in despawns:
+		if despawn["reason"] == ProjectileEntity.DespawnReason.REJECTED:
+			continue  # client-only reason, never broadcast
 		var despawn_msg: PackedByteArray = NetMessage.encode_projectile_despawned({
 			"projectile_id": despawn["id"],
 			"reason": despawn["reason"],
