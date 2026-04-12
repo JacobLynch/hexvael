@@ -30,6 +30,7 @@ var _projectile_system: ProjectileSystem = null
 # Interpolation state: ring buffer of recent snapshots for remote entities
 # 3 snapshots provides resilience against single packet loss
 const SNAPSHOT_BUFFER_SIZE: int = 3
+const BUFFER_DELAY_TICKS: int = 2  # Render 2 ticks behind latest snapshot (~66ms at 30Hz)
 var _snapshot_buffer: Array = []  # Array of Snapshot, newest at end
 var _snapshot_time: float = 0.0   # Time since newest snapshot arrived
 var _enemy_prev: Dictionary = {}  # entity_id -> snapshot data
@@ -378,24 +379,53 @@ func get_interpolated_position(entity_id: int) -> Variant:
 	if _snapshot_buffer.size() < 2:
 		return null
 
-	# Use the two most recent snapshots for interpolation
-	var snap_prev: Snapshot = _snapshot_buffer[-2]
-	var snap_curr: Snapshot = _snapshot_buffer[-1]
+	var tick_interval = MessageTypes.TICK_INTERVAL_MS / 1000.0
+	var newest_tick: int = _snapshot_buffer[-1].tick
 
-	if not snap_curr.entities.has(entity_id):
+	# Calculate render time: newest_tick minus buffer delay, plus elapsed time
+	# render_tick is a float representing where we are in the timeline
+	var render_tick: float = float(newest_tick) - BUFFER_DELAY_TICKS + (_snapshot_time / tick_interval)
+
+	# Find the two snapshots that bracket render_tick
+	var snap_a: Snapshot = null
+	var snap_b: Snapshot = null
+	for i in range(_snapshot_buffer.size() - 1):
+		var s0: Snapshot = _snapshot_buffer[i]
+		var s1: Snapshot = _snapshot_buffer[i + 1]
+		if float(s0.tick) <= render_tick and render_tick <= float(s1.tick):
+			snap_a = s0
+			snap_b = s1
+			break
+
+	# Fallback: if render_tick is before all snapshots, use oldest two
+	if snap_a == null:
+		if render_tick < float(_snapshot_buffer[0].tick):
+			snap_a = _snapshot_buffer[0]
+			snap_b = _snapshot_buffer[min(1, _snapshot_buffer.size() - 1)]
+		else:
+			# render_tick is past all snapshots — extrapolate from newest two
+			snap_a = _snapshot_buffer[-2]
+			snap_b = _snapshot_buffer[-1]
+
+	if not snap_b.entities.has(entity_id):
 		return null
 
-	var curr = snap_curr.entities[entity_id]
+	var curr = snap_b.entities[entity_id]
 	var curr_pos: Vector2 = curr["position"]
 
-	if not snap_prev.entities.has(entity_id):
+	if not snap_a.entities.has(entity_id):
 		return curr_pos
 
-	var prev = snap_prev.entities[entity_id]
+	var prev = snap_a.entities[entity_id]
 	var prev_pos: Vector2 = prev["position"]
 
-	var tick_interval = MessageTypes.TICK_INTERVAL_MS / 1000.0
-	var t = clampf(_snapshot_time / tick_interval, 0.0, MAX_REMOTE_INTERP)
+	# Compute interpolation parameter between snap_a and snap_b
+	var tick_span: float = float(snap_b.tick - snap_a.tick)
+	if tick_span <= 0.0:
+		return curr_pos
+
+	var t: float = (render_tick - float(snap_a.tick)) / tick_span
+	t = clampf(t, 0.0, MAX_REMOTE_INTERP)
 
 	if t <= 1.0:
 		# Within interpolation window — lerp between snapshots
@@ -404,8 +434,8 @@ func get_interpolated_position(entity_id: int) -> Variant:
 		# Extrapolate forward using current snapshot velocity.
 		# Fall back to positional delta as implied velocity when the snapshot
 		# does not carry an explicit velocity field (e.g. in tests or older server builds).
-		var snap_vel: Vector2 = curr.get("velocity", (curr_pos - prev_pos) / tick_interval)
-		var extra_time = (t - 1.0) * tick_interval
+		var snap_vel: Vector2 = curr.get("velocity", (curr_pos - prev_pos) / (tick_span * tick_interval))
+		var extra_time = (t - 1.0) * tick_span * tick_interval
 		return curr_pos + snap_vel * extra_time
 
 
