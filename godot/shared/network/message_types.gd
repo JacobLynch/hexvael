@@ -2,11 +2,13 @@ class_name MessageTypes
 
 # Message type IDs — first byte of every binary message
 enum Binary {
-	FULL_SNAPSHOT = 1,
-	DELTA_SNAPSHOT = 2,
-	SNAPSHOT_ACK = 3,
-	PLAYER_INPUT = 4,
-	ENEMY_DIED = 5,
+	FULL_SNAPSHOT        = 1,
+	DELTA_SNAPSHOT       = 2,
+	SNAPSHOT_ACK         = 3,
+	PLAYER_INPUT         = 4,
+	ENEMY_DIED           = 5,
+	PROJECTILE_SPAWNED   = 6,
+	PROJECTILE_DESPAWNED = 7,
 }
 
 # JSON message types — value of the "type" key
@@ -53,6 +55,11 @@ class Layout:
 	const ENEMY_ENTITY_SIZE = 17
 	# Enemy died: [type: u8][entity_id: u16][x: f32][y: f32][killer_id: u16]
 	const ENEMY_DIED_SIZE = 13
+	# Projectile spawned: [type:u8][projectile_id:u16][type_id:u8][owner_player_id:u16]
+	#                     [origin_x:f32][origin_y:f32][dir_x:f32][dir_y:f32][input_seq:u32]
+	const PROJECTILE_SPAWNED_SIZE = 26
+	# Projectile despawned: [type:u8][projectile_id:u16][reason:u8][x:f32][y:f32]
+	const PROJECTILE_DESPAWNED_SIZE = 12
 
 # Limits
 const MAX_PLAYERS = 8
