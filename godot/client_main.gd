@@ -8,6 +8,7 @@ var _local_player: PlayerEntity = null
 var _remote_proxies: Dictionary = {}  # player_id -> StaticBody2D
 var _enemy_proxies: Dictionary = {}  # entity_id -> StaticBody2D
 var _projectile_system: ProjectileSystem = null
+var _projectile_view: ProjectileView = null
 
 
 func _ready():
@@ -28,6 +29,12 @@ func _ready():
 	else:
 		push_warning("client_main: Arena node not found — projectiles will have no wall collisions")
 	_net_client.set_projectile_system(_projectile_system)
+
+	# View-layer projectile renderer — instanced from code so it can reference
+	# the dynamically added _projectile_system node directly without a NodePath.
+	_projectile_view = ProjectileView.new()
+	add_child(_projectile_view)
+	_projectile_view._projectile_system = _projectile_system
 
 	_world_view.initialize(_net_client)
 	_connection_ui.connect_requested.connect(_on_connect_requested)
@@ -68,6 +75,11 @@ func _on_connected(player_id: int):
 	add_child(_local_player)
 	_net_client.set_local_player(_local_player)
 	_net_client.enemy_snapshot_updated.connect(_on_enemy_snapshot)
+
+	# Now that we know the local player id, tell the projectile view so it can
+	# colour-code local vs remote projectiles differently.
+	if _projectile_view != null:
+		_projectile_view.set_local_player_id(player_id)
 
 
 func _process(delta: float):
