@@ -1,7 +1,16 @@
 class_name ProjectileEntity
 extends RefCounted
 
-const _Sys = preload("res://simulation/systems/projectile_system.gd")
+enum DespawnReason {
+	ALIVE    = -1,
+	LIFETIME = 0,
+	WALL     = 1,
+	ENEMY    = 2,
+	PLAYER   = 3,
+	SELF     = 4,
+	REJECTED = 5,  # client-only, never broadcast
+}
+
 const RECONCILE_DURATION: float = 0.1
 
 # Identity
@@ -28,11 +37,16 @@ func initialize(
 		id: int, type: int, owner: int,
 		origin: Vector2, dir: Vector2,
 		p: ProjectileParams) -> void:
+	assert(p != null, "ProjectileEntity.initialize: params must not be null")
 	projectile_id = id
 	type_id = type
 	owner_player_id = owner
 	position = origin
-	direction = dir.normalized() if dir.length_squared() > 0.0 else Vector2.ZERO
+	if dir.length_squared() > 0.0:
+		direction = dir.normalized()
+	else:
+		push_error("ProjectileEntity.initialize: direction is zero-length, projectile will not move")
+		direction = Vector2.ZERO
 	params = p
 	time_remaining = p.lifetime
 	spawn_grace_remaining = p.spawn_grace
@@ -63,14 +77,14 @@ func advance(dt: float, walls: Array, players: Array, enemies: Array) -> int:
 
 	# 4. Lifetime
 	if time_remaining <= 0.0:
-		return _Sys.DespawnReason.LIFETIME
+		return DespawnReason.LIFETIME
 
 	# 5. Walls (static, always checked — safe on both server and client)
 	for wall in walls:
 		if CollisionMath.circle_aabb_overlap(position, params.radius, wall):
-			return _Sys.DespawnReason.WALL
+			return DespawnReason.WALL
 
 	# 6. Enemies — filled in Task 10
 	# 7. Players — filled in Task 10
 
-	return _Sys.DespawnReason.ALIVE
+	return DespawnReason.ALIVE
