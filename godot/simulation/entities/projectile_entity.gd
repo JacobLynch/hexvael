@@ -84,7 +84,22 @@ func advance(dt: float, walls: Array, players: Array, enemies: Array) -> int:
 		if CollisionMath.circle_aabb_overlap(position, params.radius, wall):
 			return DespawnReason.WALL
 
-	# 6. Enemies — filled in Task 10
-	# 7. Players — filled in Task 10
+	# 6. Enemies (server-only — client passes empty)
+	for enemy in enemies:
+		if enemy.state == EnemyEntity.State.DEAD:
+			continue
+		if CollisionMath.circle_circle_overlap(
+				position, params.radius, enemy.position, enemy.get_collision_radius()):
+			return DespawnReason.ENEMY
+
+	# 7. Players (owner excluded during spawn grace)
+	for player in players:
+		var is_owner: bool = (player.player_id == owner_player_id)
+		if is_owner and spawn_grace_remaining > 0.0:
+			continue
+		if CollisionMath.circle_circle_overlap(
+				position, params.radius, player.position, player.get_collision_radius()):
+			return (DespawnReason.SELF
+					if is_owner else DespawnReason.PLAYER)
 
 	return DespawnReason.ALIVE
