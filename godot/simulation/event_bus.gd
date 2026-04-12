@@ -30,3 +30,7 @@ signal player_moved(event: Dictionary)           # entity_id, position, velocity
 signal enemy_spawned(event: Dictionary)
 signal enemy_state_changed(event: Dictionary)
 signal enemy_target_changed(event: Dictionary)
+
+# Projectiles
+signal projectile_spawned(event: Dictionary)
+signal projectile_despawned(event: Dictionary)
