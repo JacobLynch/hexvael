@@ -41,3 +41,9 @@ func consume_fire_press() -> bool:
 	var v = _fire_latch
 	_fire_latch = false
 	return v
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton:
+		if event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+			_fire_latch = true
