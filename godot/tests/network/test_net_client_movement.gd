@@ -231,10 +231,12 @@ func test_remote_extrapolation_capped_at_max():
 
 	var pos = _client.get_interpolated_position(2)
 
-	# t capped at MAX_REMOTE_INTERP (1.5): lerp(200, 210, 1.5) = 215
-	var max_pos = Vector2(200.0, 100.0).lerp(Vector2(210.0, 100.0), NetClient.MAX_REMOTE_INTERP)
-	assert_almost_eq(pos.x, max_pos.x, 0.01,
-		"Remote extrapolation should cap at MAX_REMOTE_INTERP")
+	# t capped at MAX_REMOTE_INTERP (3.0): extrapolation = curr + vel * 2 ticks
+	# vel = (210-200)/TICK_S = 10/TICK_S px/s, extra_time = 2*TICK_S
+	# result = 210 + (10/TICK_S) * 2*TICK_S = 210 + 20 = 230
+	var expected_x: float = 210.0 + (10.0 / TICK_S) * (2.0 * TICK_S)
+	assert_almost_eq(pos.x, expected_x, 0.01,
+		"Remote extrapolation should cap at MAX_REMOTE_INTERP (3.0)")
 
 
 func test_remote_extrapolation_uses_snapshot_velocity():

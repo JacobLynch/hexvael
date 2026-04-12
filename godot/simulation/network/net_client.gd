@@ -36,8 +36,8 @@ var _enemy_curr: Dictionary = {}  # entity_id -> snapshot data
 
 # Max remote interpolation t — allows brief extrapolation past the latest snapshot
 # to cover network jitter, preventing the freeze-then-jump stutter.
-# 1.5 = up to half a tick of extrapolation (16.7ms at 30Hz).
-const MAX_REMOTE_INTERP: float = 1.5
+# 3.0 = up to 2 ticks of extrapolation (~66ms at 30Hz).
+const MAX_REMOTE_INTERP: float = 3.0
 
 # Visual reconciliation
 const SNAP_THRESHOLD: float = 50.0   # pixels — snap if over this
