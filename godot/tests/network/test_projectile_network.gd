@@ -3,7 +3,7 @@ extends GutTest
 var NetMessage = preload("res://simulation/network/net_message.gd")
 
 
-# Round-trip tests for PROJECTILE_SPAWNED binary messages.
+# Round-trip tests for PROJECTILE_SPAWNED and PROJECTILE_DESPAWNED binary messages.
 
 func test_projectile_spawned_round_trip():
 	var event = {
@@ -25,3 +25,18 @@ func test_projectile_spawned_round_trip():
 	assert_almost_eq(decoded["direction"].x, 0.6, 0.01)
 	assert_almost_eq(decoded["direction"].y, 0.8, 0.01)
 	assert_eq(decoded["input_seq"], 999)
+
+
+func test_projectile_despawned_round_trip():
+	var event = {
+		"projectile_id": 1234,
+		"reason": 2,  # ENEMY
+		"position": Vector2(500.75, 300.5),
+	}
+	var bytes: PackedByteArray = NetMessage.encode_projectile_despawned(event)
+	assert_eq(bytes.size(), MessageTypes.Layout.PROJECTILE_DESPAWNED_SIZE)
+	var decoded = NetMessage.decode_projectile_despawned(bytes)
+	assert_eq(decoded["projectile_id"], 1234)
+	assert_eq(decoded["reason"], 2)
+	assert_almost_eq(decoded["position"].x, 500.75, 0.01)
+	assert_almost_eq(decoded["position"].y, 300.5, 0.01)

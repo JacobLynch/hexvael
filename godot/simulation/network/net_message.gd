@@ -16,6 +16,8 @@ static func encode(msg: Dictionary) -> PackedByteArray:
 			return _encode_enemy_died(msg)
 		MessageTypes.Binary.PROJECTILE_SPAWNED:
 			return _encode_projectile_spawned(msg)
+		MessageTypes.Binary.PROJECTILE_DESPAWNED:
+			return _encode_projectile_despawned(msg)
 	push_error("NetMessage.encode: unknown binary type %d" % type)
 	return PackedByteArray()
 
@@ -35,6 +37,8 @@ static func decode_binary(bytes: PackedByteArray) -> Variant:
 			return _decode_enemy_died(bytes)
 		MessageTypes.Binary.PROJECTILE_SPAWNED:
 			return _decode_projectile_spawned(bytes)
+		MessageTypes.Binary.PROJECTILE_DESPAWNED:
+			return _decode_projectile_despawned(bytes)
 	return null
 
 
@@ -274,4 +278,43 @@ static func _decode_projectile_spawned(bytes: PackedByteArray) -> Variant:
 		"origin": Vector2(bytes.decode_float(6), bytes.decode_float(10)),
 		"direction": Vector2(bytes.decode_float(14), bytes.decode_float(18)),
 		"input_seq": bytes.decode_u32(22),
+	}
+
+
+# --- Public: Projectile Despawned (for direct call from despawn handlers) ---
+
+static func encode_projectile_despawned(event: Dictionary) -> PackedByteArray:
+	return _encode_projectile_despawned(event)
+
+
+static func decode_projectile_despawned(bytes: PackedByteArray) -> Dictionary:
+	var result = _decode_projectile_despawned(bytes)
+	if result == null:
+		return {}
+	return result
+
+
+# --- Private: Projectile Despawned ---
+# Format: [type:u8][projectile_id:u16][reason:u8][x:f32][y:f32]
+
+static func _encode_projectile_despawned(event: Dictionary) -> PackedByteArray:
+	var buf = PackedByteArray()
+	buf.resize(MessageTypes.Layout.PROJECTILE_DESPAWNED_SIZE)
+	var position: Vector2 = event["position"]
+	buf.encode_u8(0, MessageTypes.Binary.PROJECTILE_DESPAWNED)
+	buf.encode_u16(1, event["projectile_id"])
+	buf.encode_u8(3, event["reason"])
+	buf.encode_float(4, position.x)
+	buf.encode_float(8, position.y)
+	return buf
+
+
+static func _decode_projectile_despawned(bytes: PackedByteArray) -> Variant:
+	if bytes.size() < MessageTypes.Layout.PROJECTILE_DESPAWNED_SIZE:
+		return null
+	return {
+		"type": MessageTypes.Binary.PROJECTILE_DESPAWNED,
+		"projectile_id": bytes.decode_u16(1),
+		"reason": bytes.decode_u8(3),
+		"position": Vector2(bytes.decode_float(4), bytes.decode_float(8)),
 	}
