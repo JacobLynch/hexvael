@@ -41,6 +41,9 @@ var _next_player_id: int = 1
 
 const MAX_CONNECTIONS_PER_IP_PER_MINUTE = 10
 
+var _projectile_system: ProjectileSystem
+var _player_position_history: PlayerPositionHistory
+
 
 func _ready():
 	_movement_system = MovementSystem.new()
@@ -54,6 +57,22 @@ func _ready():
 	_enemy_spawner = EnemySpawner.new()
 	add_child(_enemy_spawner)
 	_enemy_spawner.initialize(_enemy_system, spawner_params, enemy_params)
+
+	_projectile_system = ProjectileSystem.new()
+	add_child(_projectile_system)
+
+	_player_position_history = PlayerPositionHistory.new()
+
+	# Extract wall AABBs from the arena and pass them to the projectile system.
+	# The arena is a sibling node ("Arena") in the server scene root.
+	# In unit-test environments NetServer has no parent with an Arena child, so
+	# we degrade gracefully (projectiles fly through walls) rather than crashing.
+	var parent: Node = get_parent()
+	var arena: Node = parent.get_node_or_null("Arena") if parent != null else null
+	if arena != null:
+		_projectile_system.set_walls(WallGeometry.extract_aabbs(arena))
+	else:
+		push_warning("NetServer: Arena node not found — projectiles will have no wall collisions")
 
 	EventBus.enemy_died.connect(_on_enemy_died)
 
@@ -212,6 +231,7 @@ func _on_peer_disconnected(peer_id: int):
 	_sent_snapshots.erase(player_id)
 	_pending_snapshot_sends.erase(player_id)
 	_rtt_samples.erase(player_id)
+	_player_position_history.drop_player(player_id)
 	_player_to_peer.erase(player_id)
 	_peer_to_player.erase(peer_id)
 	_peers.erase(peer_id)
@@ -278,19 +298,47 @@ func _handle_snapshot_ack(player_id: int, ack_tick: int) -> void:
 
 func _server_tick():
 	_tick += 1
+	var tick_dt: float = MessageTypes.TICK_INTERVAL_MS / 1000.0
 
-	# Phase 1-2: Process queued inputs for each player
+	# Record player positions before movement so the rewind lookup in
+	# ProjectileSpawnRouter.handle_fire uses pre-step positions (matching
+	# what the client's position history also records at this point).
 	for player_id in _player_entities:
-		var inputs = _input_buffer.drain_inputs_for_player(player_id)
-		_movement_system.process_inputs_for_player(player_id, inputs)
+		var player: PlayerEntity = _player_entities[player_id]
+		_player_position_history.record(player_id, _tick, player.position)
+
+	# Phase 1-2: Process queued inputs for each player.
+	# We inline the input loop (rather than delegating solely to MovementSystem)
+	# so we can also route fire inputs through ProjectileSpawnRouter per-input.
+	var queued_spawn_events: Array = []
+	for player_id in _player_entities:
+		var player: PlayerEntity = _player_entities[player_id]
+		var inputs: Array = _input_buffer.drain_inputs_for_player(player_id)
+		for input in inputs:
+			player.apply_input(input)
+			var context: Dictionary = {
+				"authoritative": true,
+				"rtt_ms": get_rtt_ms(player_id),
+				"position_history": _player_position_history,
+				"tick": _tick,
+				"spawn_events": queued_spawn_events,
+			}
+			ProjectileSpawnRouter.handle_fire(player, input, _projectile_system, context)
 
 	# Phase 3: Tick physics
-	var tick_dt = MessageTypes.TICK_INTERVAL_MS / 1000.0
 	_movement_system.advance_all(tick_dt)
 
 	# Phase: Spawn and tick enemies
-	_enemy_spawner.advance(MessageTypes.TICK_INTERVAL_MS / 1000.0, _player_entities)
-	_enemy_system.advance_all(MessageTypes.TICK_INTERVAL_MS / 1000.0, _player_entities)
+	_enemy_spawner.advance(tick_dt, _player_entities)
+	_enemy_system.advance_all(tick_dt, _player_entities)
+
+	# Phase: Tick cooldowns and advance projectiles; collect despawns via return value.
+	_projectile_system.tick_cooldowns(tick_dt)
+	var despawns: Array = _projectile_system.advance(
+		tick_dt,
+		_player_entities.values(),
+		_enemy_system.get_all_enemies()
+	)
 
 	# Phase 4-5: Build and send snapshots
 	var current_snap = _build_current_snapshot()
@@ -360,6 +408,26 @@ func _server_tick():
 			if ws.get_ready_state() == WebSocketPeer.STATE_OPEN:
 				ws.send(death_msg)
 	_death_events.clear()
+
+	# Broadcast projectile spawn events collected during input routing.
+	for spawn_event in queued_spawn_events:
+		var spawn_msg: PackedByteArray = NetMessage.encode_projectile_spawned(spawn_event)
+		for peer_id in _peers:
+			var ws: WebSocketPeer = _peers[peer_id]
+			if ws.get_ready_state() == WebSocketPeer.STATE_OPEN:
+				ws.send(spawn_msg)
+
+	# Broadcast projectile despawn events from this tick's advance().
+	for despawn in despawns:
+		var despawn_msg: PackedByteArray = NetMessage.encode_projectile_despawned({
+			"projectile_id": despawn["id"],
+			"reason": despawn["reason"],
+			"position": despawn["position"],
+		})
+		for peer_id in _peers:
+			var ws: WebSocketPeer = _peers[peer_id]
+			if ws.get_ready_state() == WebSocketPeer.STATE_OPEN:
+				ws.send(despawn_msg)
 
 
 func _check_zombies() -> void:
