@@ -7,6 +7,7 @@ var _connection_ui: CanvasLayer
 var _local_player: PlayerEntity = null
 var _remote_proxies: Dictionary = {}  # player_id -> StaticBody2D
 var _enemy_proxies: Dictionary = {}  # entity_id -> StaticBody2D
+var _projectile_system: ProjectileSystem = null
 
 
 func _ready():
@@ -14,6 +15,19 @@ func _ready():
 	_world_view = $WorldView
 	_connection_ui = $ConnectionUI
 	_input_provider = KeyboardMouseInputProvider.new(get_viewport())
+
+	# Client-side projectile simulation — advances predictions and handles
+	# server reconciliation messages. Uses empty player/enemy arrays so only
+	# wall collisions are checked (remote entity positions are interpolated
+	# and don't match the server's authoritative positions).
+	_projectile_system = ProjectileSystem.new()
+	add_child(_projectile_system)
+	var arena := get_node_or_null("Arena")
+	if arena != null:
+		_projectile_system.set_walls(WallGeometry.extract_aabbs(arena))
+	else:
+		push_warning("client_main: Arena node not found — projectiles will have no wall collisions")
+	_net_client.set_projectile_system(_projectile_system)
 
 	_world_view.initialize(_net_client)
 	_connection_ui.connect_requested.connect(_on_connect_requested)
@@ -56,7 +70,7 @@ func _on_connected(player_id: int):
 	_net_client.enemy_snapshot_updated.connect(_on_enemy_snapshot)
 
 
-func _process(_delta: float):
+func _process(delta: float):
 	if _net_client.is_server_connected():
 		var player_pos = _net_client.get_local_player_position()
 		if player_pos == null:
@@ -68,6 +82,23 @@ func _process(_delta: float):
 			_net_client.dodge_pressed_latch = true
 		if _input_provider.consume_fire_press():
 			_net_client.fire_pressed_latch = true
+			# Spawn a predicted projectile immediately for responsive feel.
+			# The input_seq used here must match what _send_input will stamp on
+			# the FIRE packet: _input_seq increments at the START of _send_input,
+			# so the next sent seq is _input_seq + 1.
+			if _local_player != null and _projectile_system != null:
+				ProjectileSpawnRouter.handle_fire(_local_player, {
+					"action_flags": MessageTypes.InputActionFlags.FIRE,
+					"input_seq": _net_client._input_seq + 1,
+				}, _projectile_system, {"authoritative": false})
+
+		# Tick cooldowns and advance client-side projectile simulation.
+		# Empty player/enemy arrays: client checks walls only.
+		if _projectile_system != null:
+			_projectile_system.tick_cooldowns(delta)
+			_projectile_system._current_rtt_ms = _net_client.get_rtt_ms()
+			_projectile_system.advance(delta, [], [])
+
 		_update_remote_proxies()
 		_update_enemy_proxies()
 
