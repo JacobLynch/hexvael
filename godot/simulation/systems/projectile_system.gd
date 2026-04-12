@@ -61,6 +61,63 @@ func spawn_predicted(
 	return p
 
 
+const _RECONCILE_NO_ACTION_THRESHOLD: float = 2.0
+const _RECONCILE_SNAP_THRESHOLD: float = 200.0
+
+
+func adopt_authoritative(
+		projectile_id: int, owner_id: int, type_id: int,
+		origin: Vector2, direction: Vector2,
+		input_seq: int, current_rtt_ms: int) -> void:
+	var temp_id: int = -input_seq
+	if projectiles.has(temp_id) and projectiles[temp_id].owner_player_id == owner_id:
+		var predicted: ProjectileEntity = projectiles[temp_id]
+		projectiles.erase(temp_id)
+		predicted.projectile_id = projectile_id
+		predicted.is_predicted = false
+		projectiles[projectile_id] = predicted
+
+		var one_way_s: float = current_rtt_ms / 2000.0
+		var expected: Vector2 = origin + direction * predicted.params.speed * one_way_s
+		var drift: float = predicted.position.distance_to(expected)
+		if drift < _RECONCILE_NO_ACTION_THRESHOLD:
+			pass
+		elif drift < _RECONCILE_SNAP_THRESHOLD:
+			predicted.start_reconcile(expected)
+		else:
+			push_warning("projectile %d hard snap, drift %.1f px" % [projectile_id, drift])
+			predicted.position = expected
+		return
+
+	# No matching predicted — spawn a fresh remote projectile and fast-forward.
+	var params := ProjectileType.get_params(type_id)
+	var fresh := ProjectileEntity.new()
+	var one_way_s: float = current_rtt_ms / 2000.0
+	var spawn_pos: Vector2 = origin + direction * params.speed * one_way_s
+	fresh.initialize(projectile_id, type_id, owner_id, spawn_pos, direction, params)
+	fresh.is_predicted = false
+	fresh.spawn_input_seq = input_seq
+	projectiles[projectile_id] = fresh
+	EventBus.projectile_spawned.emit({
+		"projectile_id": projectile_id,
+		"type_id": type_id,
+		"owner_player_id": owner_id,
+		"position": spawn_pos,
+		"direction": direction,
+	})
+
+
+func on_despawn_event(projectile_id: int, reason: int, pos: Vector2) -> void:
+	if not projectiles.has(projectile_id):
+		return
+	projectiles.erase(projectile_id)
+	EventBus.projectile_despawned.emit({
+		"projectile_id": projectile_id,
+		"reason": reason,
+		"position": pos,
+	})
+
+
 func advance(dt: float, players: Array, enemies: Array) -> Array:
 	var despawned: Array = []
 	var rejection_timeout_s: float = 2.0 * (_current_rtt_ms / 1000.0) + 0.1
