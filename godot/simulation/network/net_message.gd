@@ -60,7 +60,7 @@ static func _encode_player_input(msg: Dictionary) -> PackedByteArray:
 	buf.encode_float(9, move_dir.y)
 	buf.encode_float(13, aim_dir.x)
 	buf.encode_float(17, aim_dir.y)
-	buf.encode_u8(21, 1 if msg.get("dodge_pressed", false) else 0)
+	buf.encode_u8(21, msg.get("action_flags", 0))
 	buf.encode_u32(22, msg["input_seq"])
 	return buf
 
@@ -73,7 +73,7 @@ static func _decode_player_input(bytes: PackedByteArray) -> Variant:
 		"tick": bytes.decode_u32(1),
 		"move_direction": Vector2(bytes.decode_float(5), bytes.decode_float(9)),
 		"aim_direction": Vector2(bytes.decode_float(13), bytes.decode_float(17)),
-		"dodge_pressed": bytes.decode_u8(21) != 0,
+		"action_flags": bytes.decode_u8(21),
 		"input_seq": bytes.decode_u32(22),
 	}
 

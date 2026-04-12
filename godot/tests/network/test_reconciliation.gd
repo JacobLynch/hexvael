@@ -33,7 +33,7 @@ func test_replay_matches_server_for_walking():
 			"seq": seq + 1,
 			"move_direction": Vector2(1.0, 0.0),
 			"aim_direction": Vector2.RIGHT,
-			"dodge_pressed": false,
+			"action_flags": MessageTypes.InputActionFlags.NONE,
 			"input_seq": seq + 1,
 		})
 
@@ -65,16 +65,19 @@ func test_replay_matches_server_mid_dodge():
 	for i in range(3):
 		inputs.append({
 			"seq": i + 1, "move_direction": Vector2(1.0, 0.0),
-			"aim_direction": Vector2.RIGHT, "dodge_pressed": false, "input_seq": i + 1,
+			"aim_direction": Vector2.RIGHT,
+			"action_flags": MessageTypes.InputActionFlags.NONE, "input_seq": i + 1,
 		})
 	inputs.append({
 		"seq": 4, "move_direction": Vector2(1.0, 0.0),
-		"aim_direction": Vector2.RIGHT, "dodge_pressed": true, "input_seq": 4,
+		"aim_direction": Vector2.RIGHT,
+		"action_flags": MessageTypes.InputActionFlags.DODGE, "input_seq": 4,
 	})
 	for i in range(3):
 		inputs.append({
 			"seq": 5 + i, "move_direction": Vector2(1.0, 0.0),
-			"aim_direction": Vector2.RIGHT, "dodge_pressed": false, "input_seq": 5 + i,
+			"aim_direction": Vector2.RIGHT,
+			"action_flags": MessageTypes.InputActionFlags.NONE, "input_seq": 5 + i,
 		})
 
 	for input in inputs:
@@ -112,7 +115,8 @@ func test_replay_rejects_server_rejected_dodge():
 	# Now try another dodge — should be rejected on both sides equally
 	var dodge_input = {
 		"seq": 1, "move_direction": Vector2(1.0, 0.0),
-		"aim_direction": Vector2.RIGHT, "dodge_pressed": true, "input_seq": 100,
+		"aim_direction": Vector2.RIGHT,
+		"action_flags": MessageTypes.InputActionFlags.DODGE, "input_seq": 100,
 	}
 	server.apply_input(dodge_input)
 	client.apply_input(dodge_input)
@@ -142,7 +146,7 @@ func test_netclient_reconcile_converges_to_server_state():
 			"input_seq": seq + 1,
 			"move_direction": Vector2(1.0, 0.0),
 			"aim_direction": Vector2.RIGHT,
-			"dodge_pressed": false,
+			"action_flags": MessageTypes.InputActionFlags.NONE,
 		}
 		net._pending_inputs.append(input)
 		local.apply_input(input)
@@ -156,7 +160,7 @@ func test_netclient_reconcile_converges_to_server_state():
 			"input_seq": seq + 1,
 			"move_direction": Vector2(1.0, 0.0),
 			"aim_direction": Vector2.RIGHT,
-			"dodge_pressed": false,
+			"action_flags": MessageTypes.InputActionFlags.NONE,
 		})
 		server.advance(TICK_S)
 
@@ -184,7 +188,7 @@ func test_netclient_reconcile_converges_to_server_state():
 			"input_seq": seq,
 			"move_direction": Vector2(1.0, 0.0),
 			"aim_direction": Vector2.RIGHT,
-			"dodge_pressed": false,
+			"action_flags": MessageTypes.InputActionFlags.NONE,
 		})
 		server.advance(TICK_S)
 

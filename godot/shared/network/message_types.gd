@@ -28,6 +28,13 @@ enum EnemyFlags {
 	REMOVED = 255,    # Enemy was removed (delta only)
 }
 
+# Action flags bitfield packed into the input packet (1 byte)
+enum InputActionFlags {
+	NONE  = 0,
+	DODGE = 1,  # bit 0
+	FIRE  = 2,  # bit 1
+}
+
 # Binary layout sizes in bytes
 class Layout:
 	# Snapshot frame header: [msg_type: u8][tick: u32][entity_count: u16]
@@ -38,7 +45,7 @@ class Layout:
 	#             [last_collision_normal_x:f32][last_collision_normal_y:f32]
 	const ENTITY_SIZE = 45
 	# Player input: [msg_type:u8][tick:u32][move_x:f32][move_y:f32]
-	#               [aim_x:f32][aim_y:f32][dodge_pressed:u8][input_seq:u32]
+	#               [aim_x:f32][aim_y:f32][action_flags:u8][input_seq:u32]
 	const INPUT_SIZE = 26
 	# Snapshot ACK: [msg_type: u8][tick: u32]
 	const ACK_SIZE = 5

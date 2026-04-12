@@ -5,6 +5,7 @@ extends InputProvider
 ## survives the gap between display-frame polling and tick-rate send.
 
 var _dodge_latched: bool = false
+var _fire_latch: bool = false
 var _viewport: Viewport
 
 

@@ -42,7 +42,8 @@ func apply_input(input: Dictionary) -> void:
 	var incoming_aim: Vector2 = input.get("aim_direction", aim_direction)
 	if incoming_aim.length_squared() > 0.001:
 		aim_direction = incoming_aim.normalized()
-	if input.get("dodge_pressed", false) and can_dodge():
+	var flags: int = input.get("action_flags", 0)
+	if (flags & MessageTypes.InputActionFlags.DODGE) != 0 and can_dodge():
 		start_dodge()
 	if input.has("input_seq") and input["input_seq"] > last_processed_input_seq:
 		last_processed_input_seq = input["input_seq"]

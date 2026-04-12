@@ -16,7 +16,7 @@ var _server_tick: int = 0
 
 # Client-side prediction state
 var _input_seq: int = 0
-var _pending_inputs: Array = []  # { input_seq, move_direction, aim_direction, dodge_pressed }
+var _pending_inputs: Array = []  # { input_seq, move_direction, aim_direction, action_flags }
 var _local_player: PlayerEntity = null
 
 # Interpolation state: two most recent snapshots for remote entities
@@ -80,9 +80,9 @@ func _process(delta: float):
 				"move_direction": input_direction,
 				"aim_direction": aim_direction,
 			})
-			# Don't pass dodge_pressed via apply_input — it's handled directly below
-			# so that prediction kicks off the dodge exactly once per latch-set state,
-			# and _send_input clears the latch at tick rate.
+			# Don't pass action_flags via apply_input — the dodge bit is handled directly
+			# below so that prediction kicks off the dodge exactly once per latch-set
+			# state, and _send_input clears the latch at tick rate.
 			if dodge_pressed_latch and _local_player.can_dodge():
 				_local_player.start_dodge()  # client predicts dodge immediately
 			_local_player.advance(delta)
@@ -214,14 +214,16 @@ func _send_input():
 
 	_input_seq += 1
 
-	var dodge = dodge_pressed_latch
+	var flags: int = 0
+	if dodge_pressed_latch:
+		flags |= MessageTypes.InputActionFlags.DODGE
 	dodge_pressed_latch = false  # consume once per tick send
 
 	var input = {
 		"input_seq": _input_seq,
 		"move_direction": input_direction,
 		"aim_direction": aim_direction,
-		"dodge_pressed": dodge,
+		"action_flags": flags,
 	}
 	_pending_inputs.append(input)
 	if _pending_inputs.size() > MAX_PENDING_INPUTS:
@@ -232,7 +234,7 @@ func _send_input():
 		"tick": _server_tick,
 		"move_direction": input_direction,
 		"aim_direction": aim_direction,
-		"dodge_pressed": dodge,
+		"action_flags": flags,
 		"input_seq": _input_seq,
 	}
 	_ws.send(NetMessage.encode(msg))
