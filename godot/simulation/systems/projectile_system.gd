@@ -76,6 +76,11 @@ func adopt_authoritative(
 		predicted.projectile_id = projectile_id
 		predicted.is_predicted = false
 		projectiles[projectile_id] = predicted
+		# Notify view layer so it can migrate its visual from temp_id to new id.
+		EventBus.projectile_adopted.emit({
+			"temp_id": temp_id,
+			"new_id": projectile_id,
+		})
 
 		var one_way_s: float = current_rtt_ms / 2000.0
 		var expected: Vector2 = origin + direction * predicted.params.speed * one_way_s

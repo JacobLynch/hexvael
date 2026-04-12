@@ -24,6 +24,18 @@ func _ready() -> void:
 		"or projectile_system_path must be exported")
 	EventBus.projectile_spawned.connect(_on_spawned)
 	EventBus.projectile_despawned.connect(_on_despawned)
+	EventBus.projectile_adopted.connect(_on_adopted)
+
+
+func _on_adopted(event: Dictionary) -> void:
+	# Predicted projectile was rekeyed to its authoritative id.
+	# Move the visual's _visuals entry to match.
+	var temp_id: int = event["temp_id"]
+	var new_id: int = event["new_id"]
+	if not _visuals.has(temp_id):
+		return
+	_visuals[new_id] = _visuals[temp_id]
+	_visuals.erase(temp_id)
 
 
 func _process(_delta: float) -> void:

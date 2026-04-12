@@ -34,3 +34,7 @@ signal enemy_target_changed(event: Dictionary)
 # Projectiles
 signal projectile_spawned(event: Dictionary)
 signal projectile_despawned(event: Dictionary)
+# Emitted when a predicted projectile is rekeyed to its authoritative id.
+# Event: { "temp_id": int (negative), "new_id": int (positive) }
+# View layer uses this to migrate the visual from the temp key to the new key.
+signal projectile_adopted(event: Dictionary)
