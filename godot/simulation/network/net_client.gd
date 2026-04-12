@@ -48,6 +48,10 @@ var aim_direction: Vector2 = Vector2.RIGHT  # set by caller each frame
 # This bridges the display-rate-to-tick-rate cadence gap so a dodge press that
 # lands between two tick boundaries is never dropped and never double-fires.
 var dodge_pressed_latch: bool = false
+# Edge-triggered fire latch. Set to true by the view layer on the display frame
+# the fire button is pressed (left mouse / fire action); cleared by _send_input
+# when the next tick fires. Same cadence-bridging contract as dodge_pressed_latch.
+var fire_pressed_latch: bool = false
 
 
 func connect_to_server(address: String, port: int) -> Error:
@@ -218,6 +222,9 @@ func _send_input():
 	if dodge_pressed_latch:
 		flags |= MessageTypes.InputActionFlags.DODGE
 	dodge_pressed_latch = false  # consume once per tick send
+	if fire_pressed_latch:
+		flags |= MessageTypes.InputActionFlags.FIRE
+	fire_pressed_latch = false  # consume once per tick send
 
 	var input = {
 		"input_seq": _input_seq,

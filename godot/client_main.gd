@@ -66,6 +66,8 @@ func _process(_delta: float):
 		_net_client.aim_direction = _input_provider.aim_direction
 		if _input_provider.consume_dodge_press():
 			_net_client.dodge_pressed_latch = true
+		if _input_provider.consume_fire_press():
+			_net_client.fire_pressed_latch = true
 		_update_remote_proxies()
 		_update_enemy_proxies()
 

@@ -35,3 +35,9 @@ func consume_dodge_press() -> bool:
 	var v = _dodge_latched
 	_dodge_latched = false
 	return v
+
+
+func consume_fire_press() -> bool:
+	var v = _fire_latch
+	_fire_latch = false
+	return v
