@@ -13,7 +13,15 @@ func set_local_player_id(id: int) -> void:
 
 
 func _ready() -> void:
-	_projectile_system = get_node(projectile_system_path)
+	# Support two instantiation paths:
+	# 1. Scene-instanced with projectile_system_path exported in the inspector
+	# 2. Code-instanced via ProjectileView.new() with _projectile_system set directly
+	#    before add_child() (see client_main.gd)
+	if _projectile_system == null and not projectile_system_path.is_empty():
+		_projectile_system = get_node(projectile_system_path)
+	assert(_projectile_system != null,
+		"ProjectileView: _projectile_system must be set before add_child, " +
+		"or projectile_system_path must be exported")
 	EventBus.projectile_spawned.connect(_on_spawned)
 	EventBus.projectile_despawned.connect(_on_despawned)
 

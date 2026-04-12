@@ -32,9 +32,10 @@ func _ready():
 
 	# View-layer projectile renderer — instanced from code so it can reference
 	# the dynamically added _projectile_system node directly without a NodePath.
+	# Assign _projectile_system BEFORE add_child so ProjectileView._ready() sees it.
 	_projectile_view = ProjectileView.new()
-	add_child(_projectile_view)
 	_projectile_view._projectile_system = _projectile_system
+	add_child(_projectile_view)
 
 	_world_view.initialize(_net_client)
 	_connection_ui.connect_requested.connect(_on_connect_requested)
