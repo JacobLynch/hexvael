@@ -1,7 +1,7 @@
 class_name WallGeometry
 
-static func extract_aabbs(arena_root: Node) -> Array:
-    var out: Array = []
+static func extract_aabbs(arena_root: Node) -> Array[Rect2]:
+    var out: Array[Rect2] = []
     var collision := arena_root.get_node_or_null("Collision")
     assert(collision != null, "arena has no Collision node")
     for child in collision.get_children():
