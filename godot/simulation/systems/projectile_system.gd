@@ -150,3 +150,17 @@ func advance(dt: float, players: Array, enemies: Array) -> Array:
 		})
 
 	return despawned
+
+
+func can_fire(player_id: int) -> bool:
+	return _fire_cooldown.get(player_id, 0.0) <= 0.0
+
+
+func start_cooldown(player_id: int) -> void:
+	var params := ProjectileType.get_params(ProjectileType.Id.TEST)
+	_fire_cooldown[player_id] = params.fire_cooldown
+
+
+func tick_cooldowns(dt: float) -> void:
+	for id in _fire_cooldown.keys():
+		_fire_cooldown[id] = max(0.0, _fire_cooldown[id] - dt)
