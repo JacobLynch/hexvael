@@ -61,7 +61,15 @@ func _on_despawned(event: Dictionary) -> void:
 		return
 	var node: Node2D = _visuals[id]
 	_visuals.erase(id)
-	_play_despawn_effect(node.position, event["reason"])
+	# Snap to the actual collision position before freeing. The visual's own
+	# .position field lags one frame behind because _process runs separately
+	# from the sim tick, and the despawn happens inside advance() before
+	# _process gets to update it. Using event["position"] (the sim's
+	# post-advance position at the moment of collision) makes the visual
+	# vanish at the correct point and places the particle burst precisely.
+	var final_pos: Vector2 = event["position"]
+	node.position = final_pos
+	_play_despawn_effect(final_pos, event["reason"])
 	node.queue_free()
 
 

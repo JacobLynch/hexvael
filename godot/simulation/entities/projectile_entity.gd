@@ -84,21 +84,25 @@ func advance(dt: float, walls: Array, players: Array, enemies: Array) -> int:
 		if CollisionMath.circle_aabb_overlap(position, params.radius, wall):
 			return DespawnReason.WALL
 
-	# 6. Enemies (server-only — client passes empty)
+	# 6. Enemies (server-only — client passes empty). Uses circle-vs-AABB
+	# against the entity's actual world-space collision rect, not an inscribed
+	# circle approximation — otherwise projectiles graze corners without
+	# triggering collision.
 	for enemy in enemies:
 		if enemy.state == EnemyEntity.State.DEAD:
 			continue
-		if CollisionMath.circle_circle_overlap(
-				position, params.radius, enemy.position, enemy.get_collision_radius()):
+		if CollisionMath.circle_aabb_overlap(
+				position, params.radius, enemy.get_collision_rect()):
 			return DespawnReason.ENEMY
 
-	# 7. Players (owner excluded during spawn grace)
+	# 7. Players (owner excluded during spawn grace). Same circle-vs-AABB
+	# rationale as enemies.
 	for player in players:
 		var is_owner: bool = (player.player_id == owner_player_id)
 		if is_owner and spawn_grace_remaining > 0.0:
 			continue
-		if CollisionMath.circle_circle_overlap(
-				position, params.radius, player.position, player.get_collision_radius()):
+		if CollisionMath.circle_aabb_overlap(
+				position, params.radius, player.get_collision_rect()):
 			return (DespawnReason.SELF
 					if is_owner else DespawnReason.PLAYER)
 

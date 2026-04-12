@@ -177,6 +177,24 @@ func get_collision_radius() -> float:
 	return _cached_collision_radius
 
 
+## Returns the entity's world-space AABB based on its CollisionShape2D.
+## Preferred over get_collision_radius for rectangular shapes — avoids
+## the inscribed-circle under-approximation that misses corners.
+func get_collision_rect() -> Rect2:
+	var shape_node := $CollisionShape2D as CollisionShape2D
+	var shape := shape_node.shape
+	var half: Vector2
+	if shape is RectangleShape2D:
+		half = (shape as RectangleShape2D).size / 2.0
+	elif shape is CircleShape2D:
+		var r := (shape as CircleShape2D).radius
+		half = Vector2(r, r)
+	else:
+		push_warning("PlayerEntity: unknown collision shape, using 16 px fallback")
+		half = Vector2(16, 16)
+	return Rect2(position - half, half * 2.0)
+
+
 func to_snapshot_data() -> Dictionary:
 	var flags = MessageTypes.EntityFlags.NONE
 	if velocity.length_squared() > 0.0:
