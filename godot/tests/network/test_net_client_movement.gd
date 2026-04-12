@@ -239,9 +239,9 @@ func test_remote_extrapolation_capped_at_max():
 
 func test_remote_extrapolation_uses_snapshot_velocity():
 	# Snapshot velocity (400 px/s) differs from positional delta (10px/tick = 200 px/s).
-	# At t = 1.4, extra_time = 0.4 * tick_interval = 0.02s.
-	# Velocity-based: 110 + 400 * 0.02 = 118.
-	# Delta-based:    110 + 200 * 0.02 = 114.
+	# At t = 1.4, extra_time = 0.4 * TICK_S.
+	# Velocity-based: 110 + 400 * (0.4 * TICK_S).
+	# Delta-based:    110 + 200 * (0.4 * TICK_S).
 	# Extrapolation must use snapshot velocity, not re-derive from positional delta.
 	var net = NetClientScript.new()
 	add_child_autofree(net)
@@ -267,6 +267,7 @@ func test_remote_extrapolation_uses_snapshot_velocity():
 	net._snapshot_time = TICK_S * 1.4
 
 	var result = net.get_interpolated_position(2)
-	# Expected: 110 + 400 * (0.4 * TICK_S) = 110 + 400 * 0.02 = 118.0
-	assert_almost_eq(result.x, 118.0, 0.5,
+	# Expected: curr_pos + snap_vel * extra_time = 110 + 400 * (0.4 * TICK_S)
+	var expected_x: float = 110.0 + 400.0 * (0.4 * TICK_S)
+	assert_almost_eq(result.x, expected_x, 0.5,
 		"Extrapolation must use snapshot velocity (400 px/s) not positional delta (200 px/s)")

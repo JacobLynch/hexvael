@@ -28,13 +28,13 @@ var _enemy_curr: Dictionary = {}  # entity_id -> snapshot data
 
 # Max remote interpolation t — allows brief extrapolation past the latest snapshot
 # to cover network jitter, preventing the freeze-then-jump stutter.
-# 1.5 = up to 25ms of extrapolation at 20Hz tick rate.
+# 1.5 = up to half a tick of extrapolation (16.7ms at 30Hz).
 const MAX_REMOTE_INTERP: float = 1.5
 
 # Visual reconciliation
 const SNAP_THRESHOLD: float = 50.0   # pixels — snap if over this
 const BLEND_SPEED: float = 10.0      # lerp rate per second
-const MAX_PENDING_INPUTS: int = 60   # 3 seconds at tick rate
+const MAX_PENDING_INPUTS: int = 60   # 2 seconds at 30Hz tick rate
 var _visual_offset: Vector2 = Vector2.ZERO  # visual correction being blended out
 
 # Input sending timer (match server tick rate)
