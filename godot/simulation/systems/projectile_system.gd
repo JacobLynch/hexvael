@@ -59,3 +59,37 @@ func spawn_predicted(
 		"direction": direction,
 	})
 	return p
+
+
+func advance(dt: float, players: Array, enemies: Array) -> Array:
+	var despawned: Array = []
+	var rejection_timeout_s: float = 2.0 * (_current_rtt_ms / 1000.0) + 0.1
+
+	for id in projectiles.keys():
+		var p: ProjectileEntity = projectiles[id]
+		var reason: int = p.advance(dt, _walls, players, enemies)
+
+		# Rejection timeout for predicted projectiles (client-side only).
+		# Lives here, not in ProjectileEntity.advance(), because only the system
+		# holds the current RTT estimate.
+		if reason == ProjectileEntity.DespawnReason.ALIVE and p.is_predicted:
+			if p.time_since_spawn > rejection_timeout_s:
+				reason = ProjectileEntity.DespawnReason.REJECTED
+
+		if reason != ProjectileEntity.DespawnReason.ALIVE:
+			despawned.append({
+				"id": id,
+				"reason": reason,
+				"position": p.position,
+			})
+
+	for entry in despawned:
+		var dead_id: int = entry["id"]
+		projectiles.erase(dead_id)
+		EventBus.projectile_despawned.emit({
+			"projectile_id": dead_id,
+			"reason": entry["reason"],
+			"position": entry["position"],
+		})
+
+	return despawned
