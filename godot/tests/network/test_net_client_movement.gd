@@ -176,16 +176,17 @@ func test_blend_is_framerate_independent():
 
 
 func test_remote_interpolation_normal_range():
-	_client._snapshot_prev = SnapshotScript.new()
-	_client._snapshot_prev.tick = 1
-	_client._snapshot_prev.entities[2] = {
+	var prev = SnapshotScript.new()
+	prev.tick = 1
+	prev.entities[2] = {
 		"entity_id": 2, "position": Vector2(200.0, 100.0), "flags": 0, "last_input_seq": 0,
 	}
-	_client._snapshot_curr = SnapshotScript.new()
-	_client._snapshot_curr.tick = 2
-	_client._snapshot_curr.entities[2] = {
+	var curr = SnapshotScript.new()
+	curr.tick = 2
+	curr.entities[2] = {
 		"entity_id": 2, "position": Vector2(210.0, 100.0), "flags": 0, "last_input_seq": 0,
 	}
+	_client._snapshot_buffer = [prev, curr]
 	_client._snapshot_time = TICK_S / 2.0
 
 	var pos = _client.get_interpolated_position(2)
@@ -195,16 +196,17 @@ func test_remote_interpolation_normal_range():
 
 func test_remote_extrapolation_past_tick():
 	# When snapshot is late, remote should mildly extrapolate instead of freezing
-	_client._snapshot_prev = SnapshotScript.new()
-	_client._snapshot_prev.tick = 1
-	_client._snapshot_prev.entities[2] = {
+	var prev = SnapshotScript.new()
+	prev.tick = 1
+	prev.entities[2] = {
 		"entity_id": 2, "position": Vector2(200.0, 100.0), "flags": 0, "last_input_seq": 0,
 	}
-	_client._snapshot_curr = SnapshotScript.new()
-	_client._snapshot_curr.tick = 2
-	_client._snapshot_curr.entities[2] = {
+	var curr = SnapshotScript.new()
+	curr.tick = 2
+	curr.entities[2] = {
 		"entity_id": 2, "position": Vector2(210.0, 100.0), "flags": 0, "last_input_seq": 0,
 	}
+	_client._snapshot_buffer = [prev, curr]
 	# 20ms past tick boundary (network jitter)
 	_client._snapshot_time = TICK_S + 0.020
 
@@ -216,16 +218,17 @@ func test_remote_extrapolation_past_tick():
 
 
 func test_remote_extrapolation_capped_at_max():
-	_client._snapshot_prev = SnapshotScript.new()
-	_client._snapshot_prev.tick = 1
-	_client._snapshot_prev.entities[2] = {
+	var prev = SnapshotScript.new()
+	prev.tick = 1
+	prev.entities[2] = {
 		"entity_id": 2, "position": Vector2(200.0, 100.0), "flags": 0, "last_input_seq": 0,
 	}
-	_client._snapshot_curr = SnapshotScript.new()
-	_client._snapshot_curr.tick = 2
-	_client._snapshot_curr.entities[2] = {
+	var curr = SnapshotScript.new()
+	curr.tick = 2
+	curr.entities[2] = {
 		"entity_id": 2, "position": Vector2(210.0, 100.0), "flags": 0, "last_input_seq": 0,
 	}
+	_client._snapshot_buffer = [prev, curr]
 	# Way past tick boundary
 	_client._snapshot_time = TICK_S * 5.0
 
@@ -263,8 +266,7 @@ func test_remote_extrapolation_uses_snapshot_velocity():
 		"state": 0, "dodge_time_remaining": 0.0,
 	}
 
-	net._snapshot_prev = prev
-	net._snapshot_curr = curr
+	net._snapshot_buffer = [prev, curr]
 	# t = 1.4 → into extrapolation branch (t > 1.0)
 	net._snapshot_time = TICK_S * 1.4
 
@@ -273,3 +275,41 @@ func test_remote_extrapolation_uses_snapshot_velocity():
 	var expected_x: float = 110.0 + 400.0 * (0.4 * TICK_S)
 	assert_almost_eq(result.x, expected_x, 0.5,
 		"Extrapolation must use snapshot velocity (400 px/s) not positional delta (200 px/s)")
+
+
+func test_snapshot_buffer_survives_single_packet_loss():
+	# Simulate receiving snapshots 1, 2, 4 (packet 3 lost)
+	# With 3-snapshot buffer, we should still have snap 1 and 2 to interpolate
+
+	# Receive snapshot 1
+	var snap1 = {"tick": 1, "entities": [
+		{"entity_id": 2, "position": Vector2(100.0, 100.0), "flags": 0, "last_input_seq": 0,
+		 "velocity": Vector2.ZERO, "aim_direction": Vector2.RIGHT, "state": 0,
+		 "dodge_time_remaining": 0.0, "collision_count": 0, "last_collision_normal": Vector2.ZERO}
+	], "enemy_entities": []}
+	_client._apply_full_snapshot(snap1)
+
+	# Receive snapshot 2
+	var snap2 = {"tick": 2, "entities": [
+		{"entity_id": 2, "position": Vector2(110.0, 100.0), "flags": 0, "last_input_seq": 0,
+		 "velocity": Vector2.ZERO, "aim_direction": Vector2.RIGHT, "state": 0,
+		 "dodge_time_remaining": 0.0, "collision_count": 0, "last_collision_normal": Vector2.ZERO}
+	]}
+	_client._apply_delta_snapshot(snap2)
+
+	# Snapshot 3 is lost — receive snapshot 4
+	var snap4 = {"tick": 4, "entities": [
+		{"entity_id": 2, "position": Vector2(130.0, 100.0), "flags": 0, "last_input_seq": 0,
+		 "velocity": Vector2.ZERO, "aim_direction": Vector2.RIGHT, "state": 0,
+		 "dodge_time_remaining": 0.0, "collision_count": 0, "last_collision_normal": Vector2.ZERO}
+	]}
+	_client._apply_delta_snapshot(snap4)
+
+	# Buffer should have 3 snapshots: ticks 1, 2, 4
+	assert_eq(_client.get_snapshot_buffer_size(), 3,
+		"Buffer should hold 3 snapshots after receiving 3")
+
+	# Verify we can still interpolate
+	_client._snapshot_time = TICK_S / 2.0
+	var pos = _client.get_interpolated_position(2)
+	assert_not_null(pos, "Should be able to interpolate with 3-snapshot buffer")

@@ -27,10 +27,11 @@ var _rtt_ms: int = 0                    # rolling RTT estimate (ms); 0 until fir
 # Projectile simulation (set by client_main via set_projectile_system)
 var _projectile_system: ProjectileSystem = null
 
-# Interpolation state: two most recent snapshots for remote entities
-var _snapshot_prev: Snapshot = null
-var _snapshot_curr: Snapshot = null
-var _snapshot_time: float = 0.0  # Time since _snapshot_curr arrived
+# Interpolation state: ring buffer of recent snapshots for remote entities
+# 3 snapshots provides resilience against single packet loss
+const SNAPSHOT_BUFFER_SIZE: int = 3
+var _snapshot_buffer: Array = []  # Array of Snapshot, newest at end
+var _snapshot_time: float = 0.0   # Time since newest snapshot arrived
 var _enemy_prev: Dictionary = {}  # entity_id -> snapshot data
 var _enemy_curr: Dictionary = {}  # entity_id -> snapshot data
 
@@ -191,8 +192,9 @@ func _apply_full_snapshot(msg: Dictionary):
 	snap.tick = msg["tick"]
 	for ent in msg["entities"]:
 		snap.entities[ent["entity_id"]] = ent
-	_snapshot_prev = snap.duplicate_snapshot()
-	_snapshot_curr = snap
+
+	# Reset buffer with this snapshot duplicated (need 2 for interpolation to start)
+	_snapshot_buffer = [snap.duplicate_snapshot(), snap]
 	_snapshot_time = 0.0
 	_server_tick = msg["tick"]
 
@@ -212,15 +214,23 @@ func _apply_full_snapshot(msg: Dictionary):
 
 
 func _apply_delta_snapshot(msg: Dictionary):
-	if _snapshot_curr == null:
+	if _snapshot_buffer.is_empty():
 		return  # Need a full snapshot first
 
-	_snapshot_prev = _snapshot_curr.duplicate_snapshot()
-	_snapshot_curr.apply_delta(msg["tick"], msg["entities"])
+	# Create new snapshot by copying latest and applying delta
+	var newest: Snapshot = _snapshot_buffer[-1]
+	var snap = newest.duplicate_snapshot()
+	snap.apply_delta(msg["tick"], msg["entities"])
+
+	# Push to buffer, maintain max size
+	_snapshot_buffer.append(snap)
+	while _snapshot_buffer.size() > SNAPSHOT_BUFFER_SIZE:
+		_snapshot_buffer.pop_front()
+
 	_snapshot_time = 0.0
 	_server_tick = msg["tick"]
 
-	_reconcile_local_player(_snapshot_curr)
+	_reconcile_local_player(snap)
 	_send_ack(msg["tick"])
 
 	# Enemy delta
@@ -233,10 +243,12 @@ func _apply_delta_snapshot(msg: Dictionary):
 			_enemy_curr[eid] = ent.duplicate()
 	enemy_snapshot_updated.emit(_enemy_curr)
 
-	snapshot_received.emit(_snapshot_curr.tick, msg["entities"])
+	snapshot_received.emit(snap.tick, msg["entities"])
 
 
 func _send_ack(tick: int):
+	if not _connected:
+		return
 	var msg = {
 		"type": MessageTypes.Binary.SNAPSHOT_ACK,
 		"tick": tick,
@@ -363,19 +375,23 @@ func get_interpolated_position(entity_id: int) -> Variant:
 	if entity_id == _local_player_id:
 		return null
 
-	if _snapshot_prev == null or _snapshot_curr == null:
+	if _snapshot_buffer.size() < 2:
 		return null
 
-	if not _snapshot_curr.entities.has(entity_id):
+	# Use the two most recent snapshots for interpolation
+	var snap_prev: Snapshot = _snapshot_buffer[-2]
+	var snap_curr: Snapshot = _snapshot_buffer[-1]
+
+	if not snap_curr.entities.has(entity_id):
 		return null
 
-	var curr = _snapshot_curr.entities[entity_id]
+	var curr = snap_curr.entities[entity_id]
 	var curr_pos: Vector2 = curr["position"]
 
-	if not _snapshot_prev.entities.has(entity_id):
+	if not snap_prev.entities.has(entity_id):
 		return curr_pos
 
-	var prev = _snapshot_prev.entities[entity_id]
+	var prev = snap_prev.entities[entity_id]
 	var prev_pos: Vector2 = prev["position"]
 
 	var tick_interval = MessageTypes.TICK_INTERVAL_MS / 1000.0
@@ -413,6 +429,10 @@ func get_interpolated_enemy(entity_id: int) -> Variant:
 	return result
 
 
+func get_snapshot_buffer_size() -> int:
+	return _snapshot_buffer.size()
+
+
 func get_enemy_ids() -> Array:
 	return _enemy_curr.keys()
 
@@ -443,9 +463,10 @@ func get_local_player_velocity() -> Variant:
 
 ## Returns a remote entity's snapshot data dict (read-only), or null if not present.
 func get_remote_entity_snapshot(entity_id: int) -> Variant:
-	if _snapshot_curr == null: return null
-	if not _snapshot_curr.entities.has(entity_id): return null
-	return _snapshot_curr.entities[entity_id]
+	if _snapshot_buffer.is_empty(): return null
+	var snap_curr: Snapshot = _snapshot_buffer[-1]
+	if not snap_curr.entities.has(entity_id): return null
+	return snap_curr.entities[entity_id]
 
 
 func get_visual_offset() -> Vector2:
