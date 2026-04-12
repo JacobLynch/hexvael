@@ -64,5 +64,36 @@ func _color_for_owner(owner_player_id: int) -> Color:
 	return Color(0.2, 0.8, 0.8, 0.9)       # dimmer cyan for remote shooters
 
 
-func _play_despawn_effect(_pos: Vector2, _reason: int) -> void:
-	pass  # Task 26 fills this in
+func _play_despawn_effect(pos: Vector2, reason: int) -> void:
+	match reason:
+		ProjectileEntity.DespawnReason.WALL:
+			_spawn_particle_burst(pos, Color(0.6, 0.6, 0.65), 8)
+		ProjectileEntity.DespawnReason.ENEMY:
+			_spawn_particle_burst(pos, Color(0.2, 1.0, 1.0), 6)
+		ProjectileEntity.DespawnReason.PLAYER:
+			_spawn_particle_burst(pos, Color(1.0, 0.3, 0.3), 6)
+		ProjectileEntity.DespawnReason.SELF:
+			_spawn_particle_burst(pos, Color(1.0, 0.2, 0.2), 6)
+		ProjectileEntity.DespawnReason.LIFETIME:
+			pass  # soft fade only
+		ProjectileEntity.DespawnReason.REJECTED:
+			pass  # deliberately invisible
+
+
+func _spawn_particle_burst(pos: Vector2, color: Color, count: int) -> void:
+	var particles := CPUParticles2D.new()
+	particles.emitting = false
+	particles.one_shot = true
+	particles.explosiveness = 1.0
+	particles.amount = count
+	particles.lifetime = 0.25
+	particles.direction = Vector2(0, -1)
+	particles.spread = 180.0
+	particles.initial_velocity_min = 40.0
+	particles.initial_velocity_max = 90.0
+	particles.color = color
+	particles.gravity = Vector2.ZERO
+	particles.position = pos
+	add_child(particles)
+	particles.emitting = true
+	get_tree().create_timer(0.5).timeout.connect(particles.queue_free)
