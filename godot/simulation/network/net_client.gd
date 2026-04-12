@@ -87,7 +87,7 @@ func _process(delta: float):
 				_local_player.start_dodge()  # client predicts dodge immediately
 			_local_player.advance(delta)
 
-		# Send input at tick rate (network bandwidth stays at 20Hz)
+		# Send input at tick rate (network bandwidth matches server tick rate)
 		_input_timer += delta
 		var tick_interval = MessageTypes.TICK_INTERVAL_MS / 1000.0
 		while _input_timer >= tick_interval:
