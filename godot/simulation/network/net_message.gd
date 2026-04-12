@@ -249,6 +249,7 @@ static func decode_projectile_spawned(bytes: PackedByteArray) -> Dictionary:
 # --- Private: Projectile Spawned ---
 # Format: [type:u8][projectile_id:u16][type_id:u8][owner_player_id:u16]
 #         [origin_x:f32][origin_y:f32][dir_x:f32][dir_y:f32][input_seq:u32]
+#         [tick_age_ms:u8]
 
 static func _encode_projectile_spawned(event: Dictionary) -> PackedByteArray:
 	var buf = PackedByteArray()
@@ -264,6 +265,7 @@ static func _encode_projectile_spawned(event: Dictionary) -> PackedByteArray:
 	buf.encode_float(14, direction.x)
 	buf.encode_float(18, direction.y)
 	buf.encode_u32(22, event["input_seq"])
+	buf.encode_u8(26, event.get("tick_age_ms", 0))
 	return buf
 
 
@@ -278,6 +280,7 @@ static func _decode_projectile_spawned(bytes: PackedByteArray) -> Variant:
 		"origin": Vector2(bytes.decode_float(6), bytes.decode_float(10)),
 		"direction": Vector2(bytes.decode_float(14), bytes.decode_float(18)),
 		"input_seq": bytes.decode_u32(22),
+		"tick_age_ms": bytes.decode_u8(26),
 	}
 
 
@@ -295,7 +298,7 @@ static func decode_projectile_despawned(bytes: PackedByteArray) -> Dictionary:
 
 
 # --- Private: Projectile Despawned ---
-# Format: [type:u8][projectile_id:u16][reason:u8][x:f32][y:f32]
+# Format: [type:u8][projectile_id:u16][reason:u8][x:f32][y:f32][target_entity_id:s16][tick_age_ms:u8]
 
 static func _encode_projectile_despawned(event: Dictionary) -> PackedByteArray:
 	var buf = PackedByteArray()
@@ -306,6 +309,8 @@ static func _encode_projectile_despawned(event: Dictionary) -> PackedByteArray:
 	buf.encode_u8(3, event["reason"])
 	buf.encode_float(4, position.x)
 	buf.encode_float(8, position.y)
+	buf.encode_s16(12, event.get("target_entity_id", -1))
+	buf.encode_u8(14, event.get("tick_age_ms", 0))
 	return buf
 
 
@@ -317,4 +322,6 @@ static func _decode_projectile_despawned(bytes: PackedByteArray) -> Variant:
 		"projectile_id": bytes.decode_u16(1),
 		"reason": bytes.decode_u8(3),
 		"position": Vector2(bytes.decode_float(4), bytes.decode_float(8)),
+		"target_entity_id": bytes.decode_s16(12),
+		"tick_age_ms": bytes.decode_u8(14),
 	}

@@ -335,6 +335,7 @@ func _server_tick():
 
 	# Phase: Tick cooldowns and advance projectiles; collect despawns via return value.
 	_projectile_system.tick_cooldowns(tick_dt)
+	var advance_start_ms: int = Time.get_ticks_msec()
 	var despawns: Array = _projectile_system.advance(
 		tick_dt,
 		_player_entities.values(),
@@ -414,7 +415,14 @@ func _server_tick():
 	# NOTE: These events are broadcast AFTER snapshots in the same tick, so
 	# clients must handle events that arrive after the snapshot with the same
 	# tick number. This is consistent with how enemy_died events work.
+	var broadcast_time_ms: int = Time.get_ticks_msec()
 	for spawn_event in queued_spawn_events:
+		# Spawns are queued during input processing, but the projectile then
+		# advances by tick_dt during _projectile_system.advance() before broadcast.
+		# Include that simulation time so the client can fast-forward correctly.
+		var wall_clock_age: int = broadcast_time_ms - spawn_event["queue_time_ms"]
+		var tick_age_ms: int = clampi(wall_clock_age + int(MessageTypes.TICK_INTERVAL_MS), 0, 255)
+		spawn_event["tick_age_ms"] = tick_age_ms
 		var spawn_msg: PackedByteArray = NetMessage.encode_projectile_spawned(spawn_event)
 		for peer_id in _peers:
 			var ws: WebSocketPeer = _peers[peer_id]
@@ -425,10 +433,13 @@ func _server_tick():
 	for despawn in despawns:
 		if despawn["reason"] == ProjectileEntity.DespawnReason.REJECTED:
 			continue  # client-only reason, never broadcast
+		var despawn_tick_age_ms: int = clampi(broadcast_time_ms - advance_start_ms, 0, 255)
 		var despawn_msg: PackedByteArray = NetMessage.encode_projectile_despawned({
 			"projectile_id": despawn["id"],
 			"reason": despawn["reason"],
 			"position": despawn["position"],
+			"target_entity_id": despawn["target_entity_id"],
+			"tick_age_ms": despawn_tick_age_ms,
 		})
 		for peer_id in _peers:
 			var ws: WebSocketPeer = _peers[peer_id]

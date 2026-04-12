@@ -32,6 +32,7 @@ func test_projectile_despawned_round_trip():
 		"projectile_id": 1234,
 		"reason": 2,  # ENEMY
 		"position": Vector2(500.75, 300.5),
+		"target_entity_id": 42,
 	}
 	var bytes: PackedByteArray = NetMessage.encode_projectile_despawned(event)
 	assert_eq(bytes.size(), MessageTypes.Layout.PROJECTILE_DESPAWNED_SIZE)
@@ -40,3 +41,16 @@ func test_projectile_despawned_round_trip():
 	assert_eq(decoded["reason"], 2)
 	assert_almost_eq(decoded["position"].x, 500.75, 0.01)
 	assert_almost_eq(decoded["position"].y, 300.5, 0.01)
+	assert_eq(decoded["target_entity_id"], 42)
+
+
+func test_projectile_despawned_no_target():
+	# When target_entity_id is not provided, should default to -1
+	var event = {
+		"projectile_id": 999,
+		"reason": 1,  # WALL
+		"position": Vector2(100.0, 200.0),
+	}
+	var bytes: PackedByteArray = NetMessage.encode_projectile_despawned(event)
+	var decoded = NetMessage.decode_projectile_despawned(bytes)
+	assert_eq(decoded["target_entity_id"], -1)

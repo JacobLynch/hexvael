@@ -175,7 +175,8 @@ func _handle_projectile_spawned(bytes: PackedByteArray) -> void:
 		event["origin"],
 		event["direction"],
 		event["input_seq"],
-		get_rtt_ms())
+		get_rtt_ms(),
+		event.get("tick_age_ms", 0))
 
 
 func _handle_projectile_despawned(bytes: PackedByteArray) -> void:
@@ -185,7 +186,8 @@ func _handle_projectile_despawned(bytes: PackedByteArray) -> void:
 	if event.is_empty():
 		return
 	_projectile_system.on_despawn_event(
-		event["projectile_id"], event["reason"], event["position"])
+		event["projectile_id"], event["reason"], event["position"],
+		event["target_entity_id"], event.get("tick_age_ms", 0))
 
 
 func _apply_full_snapshot(msg: Dictionary):

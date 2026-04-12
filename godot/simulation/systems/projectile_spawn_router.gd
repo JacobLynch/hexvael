@@ -33,6 +33,7 @@ static func handle_fire(
 			"origin": proj.position,   # server-now, post fast-forward
 			"direction": aim,
 			"input_seq": input["input_seq"],
+			"queue_time_ms": Time.get_ticks_msec(),
 		})
 	else:
 		var origin := player.position + aim * params.spawn_offset

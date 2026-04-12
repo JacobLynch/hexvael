@@ -68,8 +68,10 @@ const _RECONCILE_SNAP_THRESHOLD: float = 200.0
 func adopt_authoritative(
 		projectile_id: int, owner_id: int, type_id: int,
 		origin: Vector2, direction: Vector2,
-		input_seq: int, current_rtt_ms: int) -> void:
+		input_seq: int, current_rtt_ms: int, tick_age_ms: int = 0) -> void:
 	var temp_id: int = -input_seq
+	# Total delay = time from event to broadcast (tick_age) + network latency (RTT/2)
+	var total_delay_s: float = (tick_age_ms + current_rtt_ms / 2.0) / 1000.0
 	if projectiles.has(temp_id) and projectiles[temp_id].owner_player_id == owner_id:
 		var predicted: ProjectileEntity = projectiles[temp_id]
 		projectiles.erase(temp_id)
@@ -82,8 +84,7 @@ func adopt_authoritative(
 			"new_id": projectile_id,
 		})
 
-		var one_way_s: float = current_rtt_ms / 2000.0
-		var expected: Vector2 = origin + direction * predicted.params.speed * one_way_s
+		var expected: Vector2 = origin + direction * predicted.params.speed * total_delay_s
 		var drift: float = predicted.position.distance_to(expected)
 		if drift < _RECONCILE_NO_ACTION_THRESHOLD:
 			pass
@@ -97,8 +98,7 @@ func adopt_authoritative(
 	# No matching predicted — spawn a fresh remote projectile and fast-forward.
 	var params := ProjectileType.get_params(type_id)
 	var fresh := ProjectileEntity.new()
-	var one_way_s: float = current_rtt_ms / 2000.0
-	var spawn_pos: Vector2 = origin + direction * params.speed * one_way_s
+	var spawn_pos: Vector2 = origin + direction * params.speed * total_delay_s
 	fresh.initialize(projectile_id, type_id, owner_id, spawn_pos, direction, params)
 	fresh.is_predicted = false
 	fresh.spawn_input_seq = input_seq
@@ -112,7 +112,7 @@ func adopt_authoritative(
 	})
 
 
-func on_despawn_event(projectile_id: int, reason: int, pos: Vector2) -> void:
+func on_despawn_event(projectile_id: int, reason: int, pos: Vector2, target_entity_id: int = -1, tick_age_ms: int = 0) -> void:
 	if not projectiles.has(projectile_id):
 		return
 	projectiles.erase(projectile_id)
@@ -120,6 +120,8 @@ func on_despawn_event(projectile_id: int, reason: int, pos: Vector2) -> void:
 		"projectile_id": projectile_id,
 		"reason": reason,
 		"position": pos,
+		"target_entity_id": target_entity_id,
+		"tick_age_ms": tick_age_ms,
 	})
 
 
@@ -143,6 +145,7 @@ func advance(dt: float, players: Array, enemies: Array) -> Array:
 				"id": id,
 				"reason": reason,
 				"position": p.position,
+				"target_entity_id": p.last_hit_entity_id,
 			})
 
 	for entry in despawned:
@@ -152,6 +155,7 @@ func advance(dt: float, players: Array, enemies: Array) -> Array:
 			"projectile_id": dead_id,
 			"reason": entry["reason"],
 			"position": entry["position"],
+			"target_entity_id": entry["target_entity_id"],
 		})
 
 	return despawned

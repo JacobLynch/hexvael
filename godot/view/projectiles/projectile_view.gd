@@ -4,6 +4,7 @@ extends Node2D
 @export var projectile_system_path: NodePath
 
 var _projectile_system: ProjectileSystem
+var _net_client: NetClient  # For looking up interpolated entity positions
 var _visuals: Dictionary = {}   # projectile_id -> Node2D
 var _local_player_id: int = -1
 
@@ -61,15 +62,27 @@ func _on_despawned(event: Dictionary) -> void:
 		return
 	var node: Node2D = _visuals[id]
 	_visuals.erase(id)
-	# Snap to the actual collision position before freeing. The visual's own
-	# .position field lags one frame behind because _process runs separately
-	# from the sim tick, and the despawn happens inside advance() before
-	# _process gets to update it. Using event["position"] (the sim's
-	# post-advance position at the moment of collision) makes the visual
-	# vanish at the correct point and places the particle burst precisely.
+
+	var reason: int = event["reason"]
+	var target_id: int = event.get("target_entity_id", -1)
 	var final_pos: Vector2 = event["position"]
+
+	# For entity collisions, snap to where the target APPEARS to be (interpolated),
+	# not where it actually is. This compensates for the buffer delay — otherwise
+	# projectiles appear to despawn before/after reaching moving targets.
+	if target_id >= 0 and _net_client != null:
+		if reason == ProjectileEntity.DespawnReason.ENEMY:
+			var interp = _net_client.get_interpolated_enemy(target_id)
+			if interp != null:
+				final_pos = interp["position"]
+		elif reason == ProjectileEntity.DespawnReason.PLAYER or \
+			 reason == ProjectileEntity.DespawnReason.SELF:
+			var interp_pos = _net_client.get_interpolated_position(target_id)
+			if interp_pos != null:
+				final_pos = interp_pos
+
 	node.position = final_pos
-	_play_despawn_effect(final_pos, event["reason"])
+	_play_despawn_effect(final_pos, reason)
 	node.queue_free()
 
 

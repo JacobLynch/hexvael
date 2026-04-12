@@ -35,6 +35,7 @@ func _ready():
 	# Assign _projectile_system BEFORE add_child so ProjectileView._ready() sees it.
 	_projectile_view = ProjectileView.new()
 	_projectile_view._projectile_system = _projectile_system
+	_projectile_view._net_client = _net_client
 	add_child(_projectile_view)
 
 	_world_view.initialize(_net_client)

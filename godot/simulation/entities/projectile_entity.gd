@@ -32,6 +32,9 @@ var spawn_input_seq: int = -1
 var _reconcile_delta: Vector2 = Vector2.ZERO
 var _reconcile_remaining: float = 0.0
 
+# Collision target tracking — set during advance() when hitting an entity
+var last_hit_entity_id: int = -1
+
 
 func initialize(
 		id: int, type: int, owner: int,
@@ -93,6 +96,7 @@ func advance(dt: float, walls: Array, players: Array, enemies: Array) -> int:
 			continue
 		if CollisionMath.circle_aabb_overlap(
 				position, params.radius, enemy.get_collision_rect()):
+			last_hit_entity_id = enemy.entity_id
 			return DespawnReason.ENEMY
 
 	# 7. Players (owner excluded during spawn grace). Same circle-vs-AABB
@@ -103,6 +107,7 @@ func advance(dt: float, walls: Array, players: Array, enemies: Array) -> int:
 			continue
 		if CollisionMath.circle_aabb_overlap(
 				position, params.radius, player.get_collision_rect()):
+			last_hit_entity_id = player.player_id
 			return (DespawnReason.SELF
 					if is_owner else DespawnReason.PLAYER)
 

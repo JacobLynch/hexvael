@@ -57,9 +57,11 @@ class Layout:
 	const ENEMY_DIED_SIZE = 13
 	# Projectile spawned: [type:u8][projectile_id:u16][type_id:u8][owner_player_id:u16]
 	#                     [origin_x:f32][origin_y:f32][dir_x:f32][dir_y:f32][input_seq:u32]
-	const PROJECTILE_SPAWNED_SIZE = 26
-	# Projectile despawned: [type:u8][projectile_id:u16][reason:u8][x:f32][y:f32]
-	const PROJECTILE_DESPAWNED_SIZE = 12
+	#                     [tick_age_ms:u8]
+	const PROJECTILE_SPAWNED_SIZE = 27
+	# Projectile despawned: [type:u8][projectile_id:u16][reason:u8][x:f32][y:f32][target_entity_id:s16]
+	#                       [tick_age_ms:u8]
+	const PROJECTILE_DESPAWNED_SIZE = 15
 
 # Limits
 const MAX_PLAYERS = 8
