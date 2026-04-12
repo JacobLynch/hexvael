@@ -19,6 +19,14 @@ var _input_seq: int = 0
 var _pending_inputs: Array = []  # { input_seq, move_direction, aim_direction, action_flags }
 var _local_player: PlayerEntity = null
 
+# Client-side RTT tracking: time input_seq was sent -> compute round trip when ACK'd
+var _input_send_times: Dictionary = {}  # input_seq (int) -> send time msec (int)
+const _RTT_SEND_HISTORY: int = 60       # keep at most 60 unack'd entries (~2s at 30Hz)
+var _rtt_ms: int = 0                    # rolling RTT estimate (ms); 0 until first ack
+
+# Projectile simulation (set by client_main via set_projectile_system)
+var _projectile_system: ProjectileSystem = null
+
 # Interpolation state: two most recent snapshots for remote entities
 var _snapshot_prev: Snapshot = null
 var _snapshot_curr: Snapshot = null
@@ -146,6 +154,36 @@ func _handle_binary_message(bytes: PackedByteArray):
 			}
 			EventBus.enemy_died.emit(event)
 			enemy_died_received.emit(event)
+		MessageTypes.Binary.PROJECTILE_SPAWNED:
+			_handle_projectile_spawned(bytes)
+		MessageTypes.Binary.PROJECTILE_DESPAWNED:
+			_handle_projectile_despawned(bytes)
+
+
+func _handle_projectile_spawned(bytes: PackedByteArray) -> void:
+	if _projectile_system == null:
+		return
+	var event = NetMessage.decode_projectile_spawned(bytes)
+	if event.is_empty():
+		return
+	_projectile_system.adopt_authoritative(
+		event["projectile_id"],
+		event["owner_player_id"],
+		event["type_id"],
+		event["origin"],
+		event["direction"],
+		event["input_seq"],
+		get_rtt_ms())
+
+
+func _handle_projectile_despawned(bytes: PackedByteArray) -> void:
+	if _projectile_system == null:
+		return
+	var event = NetMessage.decode_projectile_despawned(bytes)
+	if event.is_empty():
+		return
+	_projectile_system.on_despawn_event(
+		event["projectile_id"], event["reason"], event["position"])
 
 
 func _apply_full_snapshot(msg: Dictionary):
@@ -236,6 +274,12 @@ func _send_input():
 	if _pending_inputs.size() > MAX_PENDING_INPUTS:
 		_pending_inputs = _pending_inputs.slice(-MAX_PENDING_INPUTS)
 
+	# Record send time for RTT measurement; pruned when ack'd or overflows.
+	_input_send_times[_input_seq] = Time.get_ticks_msec()
+	if _input_send_times.size() > _RTT_SEND_HISTORY:
+		var oldest_seq: int = _input_seq - _RTT_SEND_HISTORY
+		_input_send_times.erase(oldest_seq)
+
 	var msg = {
 		"type": MessageTypes.Binary.PLAYER_INPUT,
 		"tick": _server_tick,
@@ -256,6 +300,13 @@ func _reconcile_local_player(snap: Snapshot):
 	var server_data = snap.entities[_local_player_id]
 	var server_pos: Vector2 = server_data["position"]
 	var server_seq: int = server_data.get("last_input_seq", 0)
+
+	# Update RTT estimate from the round-trip of this input_seq.
+	if _input_send_times.has(server_seq):
+		var sample_ms: int = Time.get_ticks_msec() - _input_send_times[server_seq]
+		# Simple running average over recent acks — keeps computation O(1) per tick.
+		_rtt_ms = (_rtt_ms * 7 + sample_ms) / 8
+		_input_send_times.erase(server_seq)
 
 	# Capture what the view was showing before reconciliation
 	var visual_before: Vector2 = _local_player.position + _visual_offset
@@ -416,3 +467,14 @@ func is_server_connected() -> bool:
 
 func get_local_player_id() -> int:
 	return _local_player_id
+
+
+## Returns the current rolling RTT estimate in milliseconds (0 until the first
+## round-trip completes). Used by ProjectileSystem for rejection timeout scaling
+## and by adopt_authoritative for fast-forward distance.
+func get_rtt_ms() -> int:
+	return _rtt_ms
+
+
+func set_projectile_system(ps: ProjectileSystem) -> void:
+	_projectile_system = ps
