@@ -14,6 +14,8 @@ static func encode(msg: Dictionary) -> PackedByteArray:
 			return _encode_snapshot(msg)
 		MessageTypes.Binary.ENEMY_DIED:
 			return _encode_enemy_died(msg)
+		MessageTypes.Binary.PROJECTILE_SPAWNED:
+			return _encode_projectile_spawned(msg)
 	push_error("NetMessage.encode: unknown binary type %d" % type)
 	return PackedByteArray()
 
@@ -31,6 +33,8 @@ static func decode_binary(bytes: PackedByteArray) -> Variant:
 			return _decode_snapshot(bytes, type)
 		MessageTypes.Binary.ENEMY_DIED:
 			return _decode_enemy_died(bytes)
+		MessageTypes.Binary.PROJECTILE_SPAWNED:
+			return _decode_projectile_spawned(bytes)
 	return null
 
 
@@ -222,4 +226,52 @@ static func _decode_enemy_died(bytes: PackedByteArray) -> Variant:
 		"entity_id": bytes.decode_u16(1),
 		"position": Vector2(bytes.decode_float(3), bytes.decode_float(7)),
 		"killer_id": bytes.decode_u16(11),
+	}
+
+
+# --- Public: Projectile Spawned (for direct call from ProjectileSpawnRouter) ---
+
+static func encode_projectile_spawned(event: Dictionary) -> PackedByteArray:
+	return _encode_projectile_spawned(event)
+
+
+static func decode_projectile_spawned(bytes: PackedByteArray) -> Dictionary:
+	var result = _decode_projectile_spawned(bytes)
+	if result == null:
+		return {}
+	return result
+
+
+# --- Private: Projectile Spawned ---
+# Format: [type:u8][projectile_id:u16][type_id:u8][owner_player_id:u16]
+#         [origin_x:f32][origin_y:f32][dir_x:f32][dir_y:f32][input_seq:u32]
+
+static func _encode_projectile_spawned(event: Dictionary) -> PackedByteArray:
+	var buf = PackedByteArray()
+	buf.resize(MessageTypes.Layout.PROJECTILE_SPAWNED_SIZE)
+	var origin: Vector2 = event["origin"]
+	var direction: Vector2 = event["direction"]
+	buf.encode_u8(0, MessageTypes.Binary.PROJECTILE_SPAWNED)
+	buf.encode_u16(1, event["projectile_id"])
+	buf.encode_u8(3, event["type_id"])
+	buf.encode_u16(4, event["owner_player_id"])
+	buf.encode_float(6, origin.x)
+	buf.encode_float(10, origin.y)
+	buf.encode_float(14, direction.x)
+	buf.encode_float(18, direction.y)
+	buf.encode_u32(22, event["input_seq"])
+	return buf
+
+
+static func _decode_projectile_spawned(bytes: PackedByteArray) -> Variant:
+	if bytes.size() < MessageTypes.Layout.PROJECTILE_SPAWNED_SIZE:
+		return null
+	return {
+		"type": MessageTypes.Binary.PROJECTILE_SPAWNED,
+		"projectile_id": bytes.decode_u16(1),
+		"type_id": bytes.decode_u8(3),
+		"owner_player_id": bytes.decode_u16(4),
+		"origin": Vector2(bytes.decode_float(6), bytes.decode_float(10)),
+		"direction": Vector2(bytes.decode_float(14), bytes.decode_float(18)),
+		"input_seq": bytes.decode_u32(22),
 	}
