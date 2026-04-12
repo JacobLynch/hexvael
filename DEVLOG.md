@@ -1,5 +1,26 @@
 # Devlog
 
+## 2026-04-11
+- Projectile networking phase 4 complete on `multiplayer-projectiles` branch
+- Server tick rate bumped 20 → 30 Hz (tighter input latency, smoother remote interpolation, better collision fidelity against fast projectiles)
+- `ProjectileEntity` is a pure-data `RefCounted` with canonical `advance(dt, walls, players, enemies)` shared by server tick, client prediction, and client deterministic remote sim — one code path, dt-independent, straight-line motion `position += direction * speed * dt`, manual circle-vs-AABB and circle-vs-circle collision (no Godot physics)
+- `DespawnReason` enum lives on `ProjectileEntity`: ALIVE, LIFETIME, WALL, ENEMY, PLAYER, SELF, REJECTED (client-only)
+- `ProjectileSystem` owns the per-id dict (MAX_ACTIVE=1024), handles `spawn_authoritative` (monotonic u16 ID), `spawn_predicted` (negative temp id = -input_seq for adoption via input_seq match), `advance` (walls → enemies → players order, rejection timeout for orphan predicted), `adopt_authoritative` (rekeys predicted into authoritative, reconcile lerp under 200px drift, hard snap beyond), `on_despawn_event` (idempotent), per-player cooldown API
+- `PlayerPositionHistory` ring buffer (32 samples/player) on the server lets `ProjectileSpawnRouter.handle_fire` rewind the shooter's position to fire time by `round((rtt_ms/2) / TICK_INTERVAL_MS)` ticks, spawn at rewound origin + aim × spawn_offset, fast-forward by RTT/2 so the broadcast origin is the server-now position — this eliminates reconciliation drift for moving shooters entirely
+- `NetServer` tracks per-player RTT via `SNAPSHOT_ACK` round-trip timing, rolling average of 8 samples, exposed via `get_rtt_ms(player_id)`
+- `NetClient` tracks its own RTT via input-send-time → snapshot ACK (exponential moving average), used by rejection timeout and by `adopt_authoritative` for fast-forward math
+- Input packet unchanged size (26 bytes): `dodge_pressed: u8` → `action_flags: u8` bitfield (DODGE=1, FIRE=2). `_fire_latch` on `KeyboardMouseInputProvider` set by left-click, plumbed `consume_fire_press()` → `fire_pressed_latch` → `_send_input` → wire
+- New binary messages: `PROJECTILE_SPAWNED` (26 bytes, carries server-now origin post fast-forward) and `PROJECTILE_DESPAWNED` (12 bytes, carries despawn position for view-effect placement). `REJECTED` reason is client-only and filtered out of the broadcast loop by an explicit guard
+- `WallGeometry.extract_aabbs(arena_root)` reads 4 wall `Rect2`s from `arena.tscn` at server/client startup — no hardcoded positions, scene is the single source of truth
+- `PlayerEntity` and `EnemyEntity` gained cached `get_collision_radius()` for projectile hit detection
+- Client-side projectile sim runs with empty player/enemy arrays; enemy/player hit detection is server-authoritative (remote client positions are interpolated and wouldn't agree). Wall collisions are deterministic so every client checks them locally
+- `ProjectileView` renders live position from `ProjectileSystem.projectiles` each frame (no interpolation buffer — sim is live), 12-vertex `Polygon2D` circle tinted brighter for local shooter, per-reason despawn particle effects (wall sparks, enemy/player impact flashes, lifetime soft fade)
+- `ProjectileSpawnRouter` is the shared fire dispatcher used by both server tick loop and client prediction; same code path constructs authoritative and predicted spawns, just with different context flags
+- 217 GUT tests total (68 new this session): CollisionMath primitives, WallGeometry extraction, entity collision radii, ProjectileEntity motion + dt-independence canary + collision branches + reconcile convergence, ProjectileSystem spawn/advance/reject/reconcile/cooldown, PlayerPositionHistory ring buffer, NetServer per-player RTT, ProjectileSpawnRouter both branches, wire encode/decode round-trips, fire round-trip semi-integration test, wall + self-collision end-to-end, two-clients-deterministic-sim convergence, server-rewind validation
+- Not in this phase: damage/health/knockback, Phase 6 lag-compensated hit validation against moving targets, projectile-vs-projectile collision, multiple projectile types, spatial grid acceleration, friendly-fire toggle, tunneling fix for speed > radius/tick
+- Known deferred: manual two-browser smoke test still pending (automated test suite covers the sim and wire paths; the final visual-feel verification needs to be done by hand)
+- Next session: manual smoke test + PR + merge; then move to damage/health (step 2 combat half continues)
+
 ## 2026-04-10 (session 2)
 - Enemy spawning & AI (step 2b, enemy half) on feature/enemy-spawning-ai branch
 - EnemyEntity: CharacterBody2D with 4-state machine (SPAWNING→IDLE→CHASING→DEAD), dt-independent steering, sticky aggro with hysteresis
