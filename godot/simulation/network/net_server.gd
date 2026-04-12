@@ -28,6 +28,13 @@ var _baselines: Dictionary = {}
 # Sent snapshots awaiting ACK: player_id -> { tick -> Snapshot }
 var _sent_snapshots: Dictionary = {}
 
+# Per-player RTT tracking. Measures round-trip by timing SNAPSHOT_ACK.
+const _RTT_SAMPLE_WINDOW = 8
+# player_id -> Dictionary[tick: int, send_time_ms: int]
+var _pending_snapshot_sends: Dictionary = {}
+# player_id -> Array[int] (rolling RTT samples in ms)
+var _rtt_samples: Dictionary = {}
+
 var _tick: int = 0
 var _tick_timer: float = 0.0
 var _next_player_id: int = 1
@@ -203,6 +210,8 @@ func _on_peer_disconnected(peer_id: int):
 	_input_buffer.remove_player(player_id)
 	_baselines.erase(player_id)
 	_sent_snapshots.erase(player_id)
+	_pending_snapshot_sends.erase(player_id)
+	_rtt_samples.erase(player_id)
 	_player_to_peer.erase(player_id)
 	_peer_to_player.erase(peer_id)
 	_peers.erase(peer_id)
@@ -251,6 +260,9 @@ func _handle_snapshot_ack(player_id: int, ack_tick: int) -> void:
 	var player_sent = _sent_snapshots[player_id]
 	if not player_sent.has(ack_tick):
 		return  # ACK references unknown tick, ignore
+
+	# Record RTT sample for this ACK
+	_record_snapshot_ack(player_id, ack_tick)
 
 	# Advance baseline to the ACK'd snapshot
 	_baselines[player_id] = player_sent[ack_tick]
@@ -305,6 +317,7 @@ func _server_tick():
 			ws.send(NetMessage.encode(full_msg))
 			# Store sent snapshot; baseline advances on ACK
 			_sent_snapshots[player_id][_tick] = snap_copy
+			_record_snapshot_send(player_id, _tick)
 		else:
 			var baseline = _baselines[player_id]
 			# Check ACK timeout -- fall back to full snapshot
@@ -332,6 +345,7 @@ func _server_tick():
 				ws.send(NetMessage.encode(delta_msg))
 			# Store sent snapshot; baseline advances on ACK
 			_sent_snapshots[player_id][_tick] = snap_copy
+			_record_snapshot_send(player_id, _tick)
 
 	# Send queued death events
 	for death_event in _death_events:
@@ -375,6 +389,42 @@ func _build_current_snapshot() -> Snapshot:
 
 func _on_enemy_died(event: Dictionary) -> void:
 	_death_events.append(event)
+
+
+func _record_snapshot_send(player_id: int, tick: int) -> void:
+	if not _pending_snapshot_sends.has(player_id):
+		_pending_snapshot_sends[player_id] = {}
+	_pending_snapshot_sends[player_id][tick] = Time.get_ticks_msec()
+
+
+func _record_snapshot_ack(player_id: int, tick: int) -> void:
+	if not _pending_snapshot_sends.has(player_id):
+		return
+	var sends: Dictionary = _pending_snapshot_sends[player_id]
+	if not sends.has(tick):
+		return
+	var send_ms: int = sends[tick]
+	var rtt_ms: int = Time.get_ticks_msec() - send_ms
+	sends.erase(tick)
+
+	if not _rtt_samples.has(player_id):
+		_rtt_samples[player_id] = []
+	var samples: Array = _rtt_samples[player_id]
+	samples.append(rtt_ms)
+	while samples.size() > _RTT_SAMPLE_WINDOW:
+		samples.pop_front()
+
+
+func get_rtt_ms(player_id: int) -> int:
+	if not _rtt_samples.has(player_id):
+		return 0
+	var samples: Array = _rtt_samples[player_id]
+	if samples.is_empty():
+		return 0
+	var sum: int = 0
+	for s in samples:
+		sum += s
+	return sum / samples.size()
 
 
 func get_enemy_system() -> EnemySystem:
