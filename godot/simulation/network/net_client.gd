@@ -306,8 +306,8 @@ func _send_input():
 		"action_flags": flags,
 	}
 	_pending_inputs.append(input)
-	if _pending_inputs.size() > MAX_PENDING_INPUTS:
-		_pending_inputs = _pending_inputs.slice(-MAX_PENDING_INPUTS)
+	while _pending_inputs.size() > MAX_PENDING_INPUTS:
+		_pending_inputs.pop_front()
 
 	# Record send time for RTT measurement; pruned when ack'd or overflows.
 	_input_send_times[_input_seq] = Time.get_ticks_msec()
