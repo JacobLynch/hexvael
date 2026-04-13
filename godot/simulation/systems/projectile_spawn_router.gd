@@ -14,8 +14,8 @@ static func handle_fire(
 
 	var aim: Vector2 = player.aim_direction
 	# Allow context to override projectile type (for weapons, abilities, etc.)
-	# Default to "test" for backwards compatibility
-	var type_name: String = context.get("projectile_type", "test")
+	# Default to "frost_bolt" for the primary spell
+	var type_name: String = context.get("projectile_type", "frost_bolt")
 	var type_id: int = ProjectileType.get_type_id(type_name)
 	if type_id < 0:
 		push_error("ProjectileSpawnRouter: unknown type '%s'" % type_name)
