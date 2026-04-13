@@ -35,6 +35,9 @@ var _pending_snapshot_sends: Dictionary = {}
 # player_id -> Array[int] (rolling RTT samples in ms)
 var _rtt_samples: Dictionary = {}
 
+# Per-player input rate limiting: player_id -> inputs received this tick
+var _inputs_this_tick: Dictionary = {}
+
 var _tick: int = 0
 var _tick_timer: float = 0.0
 var _next_player_id: int = 1
@@ -320,6 +323,13 @@ func _handle_binary_message(peer_id: int, bytes: PackedByteArray):
 			var aim_mag_sq: float = aim_dir.length_squared()
 			if aim_mag_sq < 0.81 or aim_mag_sq > 1.21:
 				return  # Reject non-unit aim direction
+			# Rate limit: max inputs per tick per player
+			var count: int = _inputs_this_tick.get(player_id, 0)
+			if count >= MessageTypes.MAX_INPUTS_PER_TICK:
+				push_warning("NetServer: rate limiting player %d (>%d inputs this tick)" % [
+					player_id, MessageTypes.MAX_INPUTS_PER_TICK])
+				return
+			_inputs_this_tick[player_id] = count + 1
 			_input_buffer.add_input(player_id, msg)
 		MessageTypes.Binary.SNAPSHOT_ACK:
 			_handle_snapshot_ack(player_id, msg["tick"])
@@ -354,6 +364,8 @@ func _handle_snapshot_ack(player_id: int, ack_tick: int) -> void:
 
 func _server_tick():
 	_tick += 1
+	# Reset per-tick input counters
+	_inputs_this_tick.clear()
 	var tick_dt: float = MessageTypes.TICK_INTERVAL_MS / 1000.0
 
 	# Record player positions before movement so the rewind lookup in
