@@ -235,3 +235,16 @@ func _on_any_dodge_started(event: Dictionary):
 func _exit_tree():
 	if EventBus.player_dodge_started.is_connected(_on_any_dodge_started):
 		EventBus.player_dodge_started.disconnect(_on_any_dodge_started)
+	if _net_client != null:
+		if _net_client.connected.is_connected(_on_connected):
+			_net_client.connected.disconnect(_on_connected)
+		if _net_client.disconnected.is_connected(_on_disconnected):
+			_net_client.disconnected.disconnect(_on_disconnected)
+		if _net_client.player_joined.is_connected(_on_player_joined):
+			_net_client.player_joined.disconnect(_on_player_joined)
+		if _net_client.player_left.is_connected(_on_player_left):
+			_net_client.player_left.disconnect(_on_player_left)
+		if _net_client.snapshot_received.is_connected(_on_snapshot):
+			_net_client.snapshot_received.disconnect(_on_snapshot)
+		if _net_client.enemy_died_received.is_connected(_on_enemy_died):
+			_net_client.enemy_died_received.disconnect(_on_enemy_died)

@@ -5,6 +5,7 @@ extends InputProvider
 ## survives the gap between display-frame polling and tick-rate send.
 
 var _dodge_latched: bool = false
+var _fire_latch: bool = false
 var _viewport: Viewport
 
 
@@ -28,9 +29,21 @@ func poll(player_world_position: Vector2) -> void:
 
 	if Input.is_action_just_pressed("dodge"):
 		_dodge_latched = true
+	# Fire latch — polled here rather than via _unhandled_input because
+	# InputProvider extends RefCounted and is not in the scene tree, so it
+	# does not receive input events. Input.is_action_just_pressed is global
+	# and gives us the edge-triggered semantics we need.
+	if Input.is_action_just_pressed("fire"):
+		_fire_latch = true
 
 
 func consume_dodge_press() -> bool:
 	var v = _dodge_latched
 	_dodge_latched = false
+	return v
+
+
+func consume_fire_press() -> bool:
+	var v = _fire_latch
+	_fire_latch = false
 	return v

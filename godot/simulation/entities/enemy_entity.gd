@@ -11,6 +11,7 @@ var actual_speed: float = 0.0
 var spawn_timer: float = 0.0
 var _wander_target: Vector2 = Vector2.ZERO
 var _params: EnemyParams = null
+var _cached_collision_radius: float = -1.0
 
 
 func initialize(id: int, spawn_position: Vector2, params: EnemyParams) -> void:
@@ -175,6 +176,39 @@ func _set_state(new_state: int) -> void:
 		"entity_id": entity_id, "old_state": old_state,
 		"new_state": new_state, "position": position,
 	})
+
+
+func get_collision_radius() -> float:
+	if _cached_collision_radius < 0.0:
+		var shape_node := $CollisionShape2D as CollisionShape2D
+		var shape := shape_node.shape
+		if shape is CircleShape2D:
+			_cached_collision_radius = (shape as CircleShape2D).radius
+		elif shape is RectangleShape2D:
+			var s := (shape as RectangleShape2D).size
+			_cached_collision_radius = max(s.x, s.y) / 2.0
+		else:
+			push_warning("EnemyEntity: unknown collision shape, defaulting to 16 px")
+			_cached_collision_radius = 16.0
+	return _cached_collision_radius
+
+
+## Returns the entity's world-space AABB based on its CollisionShape2D.
+## Preferred over get_collision_radius for rectangular shapes — avoids
+## the inscribed-circle under-approximation that misses corners.
+func get_collision_rect() -> Rect2:
+	var shape_node := $CollisionShape2D as CollisionShape2D
+	var shape := shape_node.shape
+	var half: Vector2
+	if shape is RectangleShape2D:
+		half = (shape as RectangleShape2D).size / 2.0
+	elif shape is CircleShape2D:
+		var r := (shape as CircleShape2D).radius
+		half = Vector2(r, r)
+	else:
+		push_warning("EnemyEntity: unknown collision shape, using 16 px fallback")
+		half = Vector2(16, 16)
+	return Rect2(position - half, half * 2.0)
 
 
 func to_snapshot_data() -> Dictionary:

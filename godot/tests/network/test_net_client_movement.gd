@@ -176,97 +176,248 @@ func test_blend_is_framerate_independent():
 
 
 func test_remote_interpolation_normal_range():
-	_client._snapshot_prev = SnapshotScript.new()
-	_client._snapshot_prev.tick = 1
-	_client._snapshot_prev.entities[2] = {
+	# Build a 3-snapshot buffer: ticks 1, 2, 3
+	_client._snapshot_buffer = []
+
+	var snap1 = SnapshotScript.new()
+	snap1.tick = 1
+	snap1.entities[2] = {
+		"entity_id": 2, "position": Vector2(190.0, 100.0), "flags": 0, "last_input_seq": 0,
+	}
+	_client._snapshot_buffer.append(snap1)
+
+	var snap2 = SnapshotScript.new()
+	snap2.tick = 2
+	snap2.entities[2] = {
 		"entity_id": 2, "position": Vector2(200.0, 100.0), "flags": 0, "last_input_seq": 0,
 	}
-	_client._snapshot_curr = SnapshotScript.new()
-	_client._snapshot_curr.tick = 2
-	_client._snapshot_curr.entities[2] = {
+	_client._snapshot_buffer.append(snap2)
+
+	var snap3 = SnapshotScript.new()
+	snap3.tick = 3
+	snap3.entities[2] = {
 		"entity_id": 2, "position": Vector2(210.0, 100.0), "flags": 0, "last_input_seq": 0,
 	}
+	_client._snapshot_buffer.append(snap3)
+
+	# Half tick elapsed: render_tick = 3 - 2 + 0.5 = 1.5
+	# Interpolates between snap1 (190) and snap2 (200) at t=0.5 → 195
 	_client._snapshot_time = TICK_S / 2.0
 
 	var pos = _client.get_interpolated_position(2)
-	assert_almost_eq(pos.x, 205.0, 0.01,
-		"Remote player should interpolate normally at t=0.5")
+	assert_almost_eq(pos.x, 195.0, 0.01,
+		"Remote player should interpolate at render_tick 1.5")
 
 
 func test_remote_extrapolation_past_tick():
-	# When snapshot is late, remote should mildly extrapolate instead of freezing
-	_client._snapshot_prev = SnapshotScript.new()
-	_client._snapshot_prev.tick = 1
-	_client._snapshot_prev.entities[2] = {
+	# When snapshot is late, remote should mildly extrapolate instead of freezing.
+	# With 3-snap buffer (ticks 1,2,3) and BUFFER_DELAY_TICKS=2:
+	# render_tick = 3 - 2 + elapsed. To push past snap3 (tick 3) we need elapsed > 2 ticks.
+	_client._snapshot_buffer = []
+
+	var snap1 = SnapshotScript.new()
+	snap1.tick = 1
+	snap1.entities[2] = {
+		"entity_id": 2, "position": Vector2(190.0, 100.0), "flags": 0, "last_input_seq": 0,
+	}
+	_client._snapshot_buffer.append(snap1)
+
+	var snap2 = SnapshotScript.new()
+	snap2.tick = 2
+	snap2.entities[2] = {
 		"entity_id": 2, "position": Vector2(200.0, 100.0), "flags": 0, "last_input_seq": 0,
 	}
-	_client._snapshot_curr = SnapshotScript.new()
-	_client._snapshot_curr.tick = 2
-	_client._snapshot_curr.entities[2] = {
+	_client._snapshot_buffer.append(snap2)
+
+	var snap3 = SnapshotScript.new()
+	snap3.tick = 3
+	snap3.entities[2] = {
 		"entity_id": 2, "position": Vector2(210.0, 100.0), "flags": 0, "last_input_seq": 0,
 	}
-	# 20ms past tick boundary (network jitter)
-	_client._snapshot_time = TICK_S + 0.020
+	_client._snapshot_buffer.append(snap3)
+
+	# 2 ticks + 20ms past latest: render_tick = 3 - 2 + 2.02 = 3.02 → past snap3
+	_client._snapshot_time = TICK_S * 2.0 + 0.020
 
 	var pos = _client.get_interpolated_position(2)
 
-	# Should extrapolate past 210, not clamp at 210
+	# Should extrapolate past 210 (snap3's position), not clamp at it
 	assert_gt(pos.x, 210.0,
-		"Remote player should extrapolate past curr when snapshot is late")
+		"Remote player should extrapolate past latest snapshot when buffer is exhausted")
 
 
 func test_remote_extrapolation_capped_at_max():
-	_client._snapshot_prev = SnapshotScript.new()
-	_client._snapshot_prev.tick = 1
-	_client._snapshot_prev.entities[2] = {
+	var prev = SnapshotScript.new()
+	prev.tick = 1
+	prev.entities[2] = {
 		"entity_id": 2, "position": Vector2(200.0, 100.0), "flags": 0, "last_input_seq": 0,
 	}
-	_client._snapshot_curr = SnapshotScript.new()
-	_client._snapshot_curr.tick = 2
-	_client._snapshot_curr.entities[2] = {
+	var curr = SnapshotScript.new()
+	curr.tick = 2
+	curr.entities[2] = {
 		"entity_id": 2, "position": Vector2(210.0, 100.0), "flags": 0, "last_input_seq": 0,
 	}
+	_client._snapshot_buffer = [prev, curr]
 	# Way past tick boundary
 	_client._snapshot_time = TICK_S * 5.0
 
 	var pos = _client.get_interpolated_position(2)
 
-	# t capped at MAX_REMOTE_INTERP (1.5): lerp(200, 210, 1.5) = 215
-	var max_pos = Vector2(200.0, 100.0).lerp(Vector2(210.0, 100.0), NetClient.MAX_REMOTE_INTERP)
-	assert_almost_eq(pos.x, max_pos.x, 0.01,
-		"Remote extrapolation should cap at MAX_REMOTE_INTERP")
+	# t capped at MAX_REMOTE_INTERP (3.0): extrapolation = curr + vel * 2 ticks
+	# vel = (210-200)/TICK_S = 10/TICK_S px/s, extra_time = 2*TICK_S
+	# result = 210 + (10/TICK_S) * 2*TICK_S = 210 + 20 = 230
+	var expected_x: float = 210.0 + (10.0 / TICK_S) * (2.0 * TICK_S)
+	assert_almost_eq(pos.x, expected_x, 0.01,
+		"Remote extrapolation should cap at MAX_REMOTE_INTERP (3.0)")
 
 
 func test_remote_extrapolation_uses_snapshot_velocity():
-	# Snapshot velocity (400 px/s) differs from positional delta (10px/tick = 200 px/s).
-	# At t = 1.4, extra_time = 0.4 * tick_interval = 0.02s.
-	# Velocity-based: 110 + 400 * 0.02 = 118.
-	# Delta-based:    110 + 200 * 0.02 = 114.
+	# Snapshot velocity (400 px/s) differs from positional delta (10px/tick = 300 px/s).
+	# With 3 snaps (ticks 1,2,3) and BUFFER_DELAY_TICKS=2:
+	#   render_tick = 3 - 2 + elapsed
+	# Set elapsed = 2.4 ticks → render_tick = 3.4, past snap3 (tick 3).
+	# Extrapolates from snap2/snap3: tick_span=1, t=(3.4-2)/1=1.4.
+	# Velocity-based: snap3_pos + snap3_vel * (0.4 * TICK_S) = 120 + 400 * (0.4 * TICK_S).
+	# Delta-based:    120 + ((120-110)/TICK_S) * (0.4 * TICK_S) = 120 + 4 = 124.
 	# Extrapolation must use snapshot velocity, not re-derive from positional delta.
 	var net = NetClientScript.new()
 	add_child_autofree(net)
 
-	var prev = SnapshotScript.new()
-	prev.tick = 1
-	prev.entities[2] = {
+	var snap1 = SnapshotScript.new()
+	snap1.tick = 1
+	snap1.entities[2] = {
 		"entity_id": 2, "position": Vector2(100.0, 0.0), "flags": 0, "last_input_seq": 0,
 		"velocity": Vector2.ZERO, "aim_direction": Vector2.RIGHT,
 		"state": 0, "dodge_time_remaining": 0.0,
 	}
-	var curr = SnapshotScript.new()
-	curr.tick = 2
-	curr.entities[2] = {
+	var snap2 = SnapshotScript.new()
+	snap2.tick = 2
+	snap2.entities[2] = {
 		"entity_id": 2, "position": Vector2(110.0, 0.0), "flags": 0, "last_input_seq": 0,
+		"velocity": Vector2.ZERO, "aim_direction": Vector2.RIGHT,
+		"state": 0, "dodge_time_remaining": 0.0,
+	}
+	var snap3 = SnapshotScript.new()
+	snap3.tick = 3
+	snap3.entities[2] = {
+		"entity_id": 2, "position": Vector2(120.0, 0.0), "flags": 0, "last_input_seq": 0,
 		"velocity": Vector2(400.0, 0.0), "aim_direction": Vector2.RIGHT,
 		"state": 0, "dodge_time_remaining": 0.0,
 	}
 
-	net._snapshot_prev = prev
-	net._snapshot_curr = curr
-	# t = 1.4 → into extrapolation branch (t > 1.0)
-	net._snapshot_time = TICK_S * 1.4
+	net._snapshot_buffer = [snap1, snap2, snap3]
+	# elapsed = 2.4 ticks → render_tick = 3.4 → extrapolates past snap3
+	net._snapshot_time = TICK_S * 2.4
 
 	var result = net.get_interpolated_position(2)
-	# Expected: 110 + 400 * (0.4 * TICK_S) = 110 + 400 * 0.02 = 118.0
-	assert_almost_eq(result.x, 118.0, 0.5,
-		"Extrapolation must use snapshot velocity (400 px/s) not positional delta (200 px/s)")
+	# Expected: snap3_pos + snap3_vel * extra_time = 120 + 400 * (0.4 * TICK_S)
+	var expected_x: float = 120.0 + 400.0 * (0.4 * TICK_S)
+	assert_almost_eq(result.x, expected_x, 0.5,
+		"Extrapolation must use snapshot velocity (400 px/s) not positional delta (300 px/s)")
+
+
+func test_buffer_delay_renders_behind_latest_snapshot():
+	# With BUFFER_DELAY_TICKS = 2, when we have snapshots at t=1,2,3
+	# and _snapshot_time = 0, we should be rendering at t=1 (2 ticks behind t=3)
+
+	# Simulate receiving 3 snapshots
+	var snap1 = {"tick": 1, "entities": [
+		{"entity_id": 2, "position": Vector2(100.0, 100.0), "flags": 0, "last_input_seq": 0,
+		 "velocity": Vector2.ZERO, "aim_direction": Vector2.RIGHT, "state": 0,
+		 "dodge_time_remaining": 0.0, "collision_count": 0, "last_collision_normal": Vector2.ZERO}
+	], "enemy_entities": []}
+	_client._apply_full_snapshot(snap1)
+
+	var snap2 = {"tick": 2, "entities": [
+		{"entity_id": 2, "position": Vector2(110.0, 100.0), "flags": 0, "last_input_seq": 0,
+		 "velocity": Vector2.ZERO, "aim_direction": Vector2.RIGHT, "state": 0,
+		 "dodge_time_remaining": 0.0, "collision_count": 0, "last_collision_normal": Vector2.ZERO}
+	]}
+	_client._apply_delta_snapshot(snap2)
+
+	var snap3 = {"tick": 3, "entities": [
+		{"entity_id": 2, "position": Vector2(120.0, 100.0), "flags": 0, "last_input_seq": 0,
+		 "velocity": Vector2.ZERO, "aim_direction": Vector2.RIGHT, "state": 0,
+		 "dodge_time_remaining": 0.0, "collision_count": 0, "last_collision_normal": Vector2.ZERO}
+	]}
+	_client._apply_delta_snapshot(snap3)
+
+	# Right after snap3 arrives, _snapshot_time = 0
+	# With 2-tick buffer delay, we should render at the position from 2 ticks ago
+	# snap1.position = 100, snap2.position = 110, snap3.position = 120
+	# render_time = snap3.tick - 2 = tick 1, so position should be 100
+	_client._snapshot_time = 0.0
+	var pos = _client.get_interpolated_position(2)
+
+	assert_almost_eq(pos.x, 100.0, 1.0,
+		"With 2-tick buffer delay and _snapshot_time=0, should render at oldest snapshot")
+
+
+func test_buffer_delay_interpolates_smoothly():
+	# With buffer delay, verify smooth interpolation mid-tick
+	var snap1 = {"tick": 1, "entities": [
+		{"entity_id": 2, "position": Vector2(100.0, 100.0), "flags": 0, "last_input_seq": 0,
+		 "velocity": Vector2.ZERO, "aim_direction": Vector2.RIGHT, "state": 0,
+		 "dodge_time_remaining": 0.0, "collision_count": 0, "last_collision_normal": Vector2.ZERO}
+	], "enemy_entities": []}
+	_client._apply_full_snapshot(snap1)
+
+	var snap2 = {"tick": 2, "entities": [
+		{"entity_id": 2, "position": Vector2(110.0, 100.0), "flags": 0, "last_input_seq": 0,
+		 "velocity": Vector2.ZERO, "aim_direction": Vector2.RIGHT, "state": 0,
+		 "dodge_time_remaining": 0.0, "collision_count": 0, "last_collision_normal": Vector2.ZERO}
+	]}
+	_client._apply_delta_snapshot(snap2)
+
+	var snap3 = {"tick": 3, "entities": [
+		{"entity_id": 2, "position": Vector2(120.0, 100.0), "flags": 0, "last_input_seq": 0,
+		 "velocity": Vector2.ZERO, "aim_direction": Vector2.RIGHT, "state": 0,
+		 "dodge_time_remaining": 0.0, "collision_count": 0, "last_collision_normal": Vector2.ZERO}
+	]}
+	_client._apply_delta_snapshot(snap3)
+
+	# Half a tick after snap3 arrives: render_tick = 3 - 2 + 0.5 = 1.5
+	# Should interpolate between snap1 (100) and snap2 (110) at t=0.5 → 105
+	_client._snapshot_time = TICK_S * 0.5
+	var pos = _client.get_interpolated_position(2)
+
+	assert_almost_eq(pos.x, 105.0, 1.0,
+		"Should interpolate smoothly between buffered snapshots")
+
+
+func test_snapshot_buffer_survives_single_packet_loss():
+	# Simulate receiving snapshots 1, 2, 4 (packet 3 lost)
+	# With 3-snapshot buffer, we should still have snap 1 and 2 to interpolate
+
+	# Receive snapshot 1
+	var snap1 = {"tick": 1, "entities": [
+		{"entity_id": 2, "position": Vector2(100.0, 100.0), "flags": 0, "last_input_seq": 0,
+		 "velocity": Vector2.ZERO, "aim_direction": Vector2.RIGHT, "state": 0,
+		 "dodge_time_remaining": 0.0, "collision_count": 0, "last_collision_normal": Vector2.ZERO}
+	], "enemy_entities": []}
+	_client._apply_full_snapshot(snap1)
+
+	# Receive snapshot 2
+	var snap2 = {"tick": 2, "entities": [
+		{"entity_id": 2, "position": Vector2(110.0, 100.0), "flags": 0, "last_input_seq": 0,
+		 "velocity": Vector2.ZERO, "aim_direction": Vector2.RIGHT, "state": 0,
+		 "dodge_time_remaining": 0.0, "collision_count": 0, "last_collision_normal": Vector2.ZERO}
+	]}
+	_client._apply_delta_snapshot(snap2)
+
+	# Snapshot 3 is lost — receive snapshot 4
+	var snap4 = {"tick": 4, "entities": [
+		{"entity_id": 2, "position": Vector2(130.0, 100.0), "flags": 0, "last_input_seq": 0,
+		 "velocity": Vector2.ZERO, "aim_direction": Vector2.RIGHT, "state": 0,
+		 "dodge_time_remaining": 0.0, "collision_count": 0, "last_collision_normal": Vector2.ZERO}
+	]}
+	_client._apply_delta_snapshot(snap4)
+
+	# Buffer should have 3 snapshots: ticks 1, 2, 4
+	assert_eq(_client.get_snapshot_buffer_size(), 3,
+		"Buffer should hold 3 snapshots after receiving 3")
+
+	# Verify we can still interpolate
+	_client._snapshot_time = TICK_S / 2.0
+	var pos = _client.get_interpolated_position(2)
+	assert_not_null(pos, "Should be able to interpolate with 3-snapshot buffer")

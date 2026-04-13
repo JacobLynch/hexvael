@@ -26,6 +26,8 @@ var last_collision_normal: Vector2 = Vector2.ZERO
 # re-fire for every replayed input.
 var _suppress_events: bool = false
 
+var _cached_collision_radius: float = -1.0
+
 
 func initialize(id: int, spawn_position: Vector2) -> void:
 	player_id = id
@@ -42,7 +44,8 @@ func apply_input(input: Dictionary) -> void:
 	var incoming_aim: Vector2 = input.get("aim_direction", aim_direction)
 	if incoming_aim.length_squared() > 0.001:
 		aim_direction = incoming_aim.normalized()
-	if input.get("dodge_pressed", false) and can_dodge():
+	var flags: int = input.get("action_flags", 0)
+	if (flags & MessageTypes.InputActionFlags.DODGE) != 0 and can_dodge():
 		start_dodge()
 	if input.has("input_seq") and input["input_seq"] > last_processed_input_seq:
 		last_processed_input_seq = input["input_seq"]
@@ -157,6 +160,39 @@ func advance(dt: float) -> void:
 				"position": position,
 				"velocity": velocity,
 			})
+
+
+func get_collision_radius() -> float:
+	if _cached_collision_radius < 0.0:
+		var shape_node := $CollisionShape2D as CollisionShape2D
+		var shape := shape_node.shape
+		if shape is CircleShape2D:
+			_cached_collision_radius = (shape as CircleShape2D).radius
+		elif shape is RectangleShape2D:
+			var s := (shape as RectangleShape2D).size
+			_cached_collision_radius = max(s.x, s.y) / 2.0
+		else:
+			push_warning("PlayerEntity: unknown collision shape, defaulting to 16 px")
+			_cached_collision_radius = 16.0
+	return _cached_collision_radius
+
+
+## Returns the entity's world-space AABB based on its CollisionShape2D.
+## Preferred over get_collision_radius for rectangular shapes — avoids
+## the inscribed-circle under-approximation that misses corners.
+func get_collision_rect() -> Rect2:
+	var shape_node := $CollisionShape2D as CollisionShape2D
+	var shape := shape_node.shape
+	var half: Vector2
+	if shape is RectangleShape2D:
+		half = (shape as RectangleShape2D).size / 2.0
+	elif shape is CircleShape2D:
+		var r := (shape as CircleShape2D).radius
+		half = Vector2(r, r)
+	else:
+		push_warning("PlayerEntity: unknown collision shape, using 16 px fallback")
+		half = Vector2(16, 16)
+	return Rect2(position - half, half * 2.0)
 
 
 func to_snapshot_data() -> Dictionary:

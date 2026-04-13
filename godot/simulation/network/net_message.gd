@@ -14,6 +14,10 @@ static func encode(msg: Dictionary) -> PackedByteArray:
 			return _encode_snapshot(msg)
 		MessageTypes.Binary.ENEMY_DIED:
 			return _encode_enemy_died(msg)
+		MessageTypes.Binary.PROJECTILE_SPAWNED:
+			return _encode_projectile_spawned(msg)
+		MessageTypes.Binary.PROJECTILE_DESPAWNED:
+			return _encode_projectile_despawned(msg)
 	push_error("NetMessage.encode: unknown binary type %d" % type)
 	return PackedByteArray()
 
@@ -31,6 +35,10 @@ static func decode_binary(bytes: PackedByteArray) -> Variant:
 			return _decode_snapshot(bytes, type)
 		MessageTypes.Binary.ENEMY_DIED:
 			return _decode_enemy_died(bytes)
+		MessageTypes.Binary.PROJECTILE_SPAWNED:
+			return _decode_projectile_spawned(bytes)
+		MessageTypes.Binary.PROJECTILE_DESPAWNED:
+			return _decode_projectile_despawned(bytes)
 	return null
 
 
@@ -60,7 +68,7 @@ static func _encode_player_input(msg: Dictionary) -> PackedByteArray:
 	buf.encode_float(9, move_dir.y)
 	buf.encode_float(13, aim_dir.x)
 	buf.encode_float(17, aim_dir.y)
-	buf.encode_u8(21, 1 if msg.get("dodge_pressed", false) else 0)
+	buf.encode_u8(21, msg.get("action_flags", 0))
 	buf.encode_u32(22, msg["input_seq"])
 	return buf
 
@@ -73,7 +81,7 @@ static func _decode_player_input(bytes: PackedByteArray) -> Variant:
 		"tick": bytes.decode_u32(1),
 		"move_direction": Vector2(bytes.decode_float(5), bytes.decode_float(9)),
 		"aim_direction": Vector2(bytes.decode_float(13), bytes.decode_float(17)),
-		"dodge_pressed": bytes.decode_u8(21) != 0,
+		"action_flags": bytes.decode_u8(21),
 		"input_seq": bytes.decode_u32(22),
 	}
 
@@ -222,4 +230,98 @@ static func _decode_enemy_died(bytes: PackedByteArray) -> Variant:
 		"entity_id": bytes.decode_u16(1),
 		"position": Vector2(bytes.decode_float(3), bytes.decode_float(7)),
 		"killer_id": bytes.decode_u16(11),
+	}
+
+
+# --- Public: Projectile Spawned (for direct call from ProjectileSpawnRouter) ---
+
+static func encode_projectile_spawned(event: Dictionary) -> PackedByteArray:
+	return _encode_projectile_spawned(event)
+
+
+static func decode_projectile_spawned(bytes: PackedByteArray) -> Dictionary:
+	var result = _decode_projectile_spawned(bytes)
+	if result == null:
+		return {}
+	return result
+
+
+# --- Private: Projectile Spawned ---
+# Format: [type:u8][projectile_id:u16][type_id:u8][owner_player_id:u16]
+#         [origin_x:f32][origin_y:f32][dir_x:f32][dir_y:f32][input_seq:u32]
+#         [tick_age_ms:u8]
+
+static func _encode_projectile_spawned(event: Dictionary) -> PackedByteArray:
+	var buf = PackedByteArray()
+	buf.resize(MessageTypes.Layout.PROJECTILE_SPAWNED_SIZE)
+	var origin: Vector2 = event["origin"]
+	var direction: Vector2 = event["direction"]
+	buf.encode_u8(0, MessageTypes.Binary.PROJECTILE_SPAWNED)
+	buf.encode_u16(1, event["projectile_id"])
+	buf.encode_u8(3, event["type_id"])
+	buf.encode_u16(4, event["owner_player_id"])
+	buf.encode_float(6, origin.x)
+	buf.encode_float(10, origin.y)
+	buf.encode_float(14, direction.x)
+	buf.encode_float(18, direction.y)
+	buf.encode_u32(22, event["input_seq"])
+	buf.encode_u8(26, event.get("tick_age_ms", 0))
+	return buf
+
+
+static func _decode_projectile_spawned(bytes: PackedByteArray) -> Variant:
+	if bytes.size() < MessageTypes.Layout.PROJECTILE_SPAWNED_SIZE:
+		return null
+	return {
+		"type": MessageTypes.Binary.PROJECTILE_SPAWNED,
+		"projectile_id": bytes.decode_u16(1),
+		"type_id": bytes.decode_u8(3),
+		"owner_player_id": bytes.decode_u16(4),
+		"origin": Vector2(bytes.decode_float(6), bytes.decode_float(10)),
+		"direction": Vector2(bytes.decode_float(14), bytes.decode_float(18)),
+		"input_seq": bytes.decode_u32(22),
+		"tick_age_ms": bytes.decode_u8(26),
+	}
+
+
+# --- Public: Projectile Despawned (for direct call from despawn handlers) ---
+
+static func encode_projectile_despawned(event: Dictionary) -> PackedByteArray:
+	return _encode_projectile_despawned(event)
+
+
+static func decode_projectile_despawned(bytes: PackedByteArray) -> Dictionary:
+	var result = _decode_projectile_despawned(bytes)
+	if result == null:
+		return {}
+	return result
+
+
+# --- Private: Projectile Despawned ---
+# Format: [type:u8][projectile_id:u16][reason:u8][x:f32][y:f32][target_entity_id:s16][tick_age_ms:u8]
+
+static func _encode_projectile_despawned(event: Dictionary) -> PackedByteArray:
+	var buf = PackedByteArray()
+	buf.resize(MessageTypes.Layout.PROJECTILE_DESPAWNED_SIZE)
+	var position: Vector2 = event["position"]
+	buf.encode_u8(0, MessageTypes.Binary.PROJECTILE_DESPAWNED)
+	buf.encode_u16(1, event["projectile_id"])
+	buf.encode_u8(3, event["reason"])
+	buf.encode_float(4, position.x)
+	buf.encode_float(8, position.y)
+	buf.encode_s16(12, event.get("target_entity_id", -1))
+	buf.encode_u8(14, event.get("tick_age_ms", 0))
+	return buf
+
+
+static func _decode_projectile_despawned(bytes: PackedByteArray) -> Variant:
+	if bytes.size() < MessageTypes.Layout.PROJECTILE_DESPAWNED_SIZE:
+		return null
+	return {
+		"type": MessageTypes.Binary.PROJECTILE_DESPAWNED,
+		"projectile_id": bytes.decode_u16(1),
+		"reason": bytes.decode_u8(3),
+		"position": Vector2(bytes.decode_float(4), bytes.decode_float(8)),
+		"target_entity_id": bytes.decode_s16(12),
+		"tick_age_ms": bytes.decode_u8(14),
 	}

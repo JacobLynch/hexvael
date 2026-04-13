@@ -19,7 +19,7 @@ func test_player_input_round_trip():
 	assert_almost_eq(decoded["move_direction"].y, -0.8, 0.001)
 	assert_almost_eq(decoded["aim_direction"].x, 1.0, 0.001)
 	assert_almost_eq(decoded["aim_direction"].y, 0.0, 0.001)
-	assert_eq(decoded["dodge_pressed"], false)
+	assert_eq(decoded["action_flags"], MessageTypes.InputActionFlags.NONE)
 	assert_eq(decoded["input_seq"], 1234)
 
 
@@ -29,13 +29,14 @@ func test_player_input_round_trip_with_dodge():
 		"tick": 42,
 		"move_direction": Vector2(0.6, -0.8),
 		"aim_direction": Vector2(1.0, 0.0),
-		"dodge_pressed": true,
+		"action_flags": MessageTypes.InputActionFlags.DODGE,
 		"input_seq": 1234,
 	}
 	var bytes = NetMessage.encode(msg)
 	assert_eq(bytes.size(), MessageTypes.Layout.INPUT_SIZE)
 	var decoded = NetMessage.decode_binary(bytes)
-	assert_eq(decoded["dodge_pressed"], true)
+	assert_eq(decoded["action_flags"] & MessageTypes.InputActionFlags.DODGE,
+		MessageTypes.InputActionFlags.DODGE)
 	assert_eq(decoded["input_seq"], 1234)
 
 
@@ -215,6 +216,37 @@ func test_last_input_seq_supports_u32_range():
 	var bytes = NetMessage.encode(msg)
 	var decoded = NetMessage.decode_binary(bytes)
 	assert_eq(decoded["entities"][0]["last_input_seq"], large_seq)
+
+
+func test_input_packet_encodes_fire_flag():
+	var msg = {
+		"type": MessageTypes.Binary.PLAYER_INPUT,
+		"tick": 100,
+		"move_direction": Vector2(0, 1),
+		"aim_direction": Vector2(1, 0),
+		"action_flags": MessageTypes.InputActionFlags.FIRE,
+		"input_seq": 42,
+	}
+	var bytes = NetMessage.encode(msg)
+	var decoded = NetMessage.decode_binary(bytes)
+	assert_eq(decoded["action_flags"] & MessageTypes.InputActionFlags.FIRE,
+		MessageTypes.InputActionFlags.FIRE)
+	assert_eq(decoded["action_flags"] & MessageTypes.InputActionFlags.DODGE, 0)
+
+
+func test_input_packet_encodes_dodge_and_fire_together():
+	var msg = {
+		"type": MessageTypes.Binary.PLAYER_INPUT,
+		"tick": 100,
+		"move_direction": Vector2(0, 1),
+		"aim_direction": Vector2(1, 0),
+		"action_flags": MessageTypes.InputActionFlags.DODGE | MessageTypes.InputActionFlags.FIRE,
+		"input_seq": 42,
+	}
+	var bytes = NetMessage.encode(msg)
+	var decoded = NetMessage.decode_binary(bytes)
+	assert_eq(decoded["action_flags"],
+		MessageTypes.InputActionFlags.DODGE | MessageTypes.InputActionFlags.FIRE)
 
 
 func test_snapshot_round_trip_collision_fields():

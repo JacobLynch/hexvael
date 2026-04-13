@@ -19,3 +19,8 @@ func poll(player_world_position: Vector2) -> void:
 ## to guarantee exactly one dodge input per real button press.
 func consume_dodge_press() -> bool:
 	return false
+
+## Returns true and CLEARS the latch. Used by the network send layer
+## to guarantee exactly one fire input per real button press.
+func consume_fire_press() -> bool:
+	return false

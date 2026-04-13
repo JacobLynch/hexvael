@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ProjectileParams" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://shared/projectiles/projectile_params.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+speed = 600.0
+lifetime = 1.5
+radius = 6.0
+spawn_offset = 14.0
+spawn_grace = 0.1
+fire_cooldown = 0.2
+impact_force = 0.0
