@@ -57,8 +57,8 @@ class Layout:
 	const ENEMY_DIED_SIZE = 13
 	# Projectile spawned: [type:u8][projectile_id:u16][type_id:u8][owner_player_id:u16]
 	#                     [origin_x:f32][origin_y:f32][dir_x:f32][dir_y:f32][input_seq:u32]
-	#                     [tick_age_ms:u8]
-	const PROJECTILE_SPAWNED_SIZE = 27
+	#                     [tick_age_ms:u8][source_x:f32][source_y:f32]
+	const PROJECTILE_SPAWNED_SIZE = 35  # was 27, added 8 bytes for source_position (2 floats)
 	# Projectile despawned: [type:u8][projectile_id:u16][reason:u8][x:f32][y:f32][target_entity_id:s16]
 	#                       [tick_age_ms:u8]
 	const PROJECTILE_DESPAWNED_SIZE = 15

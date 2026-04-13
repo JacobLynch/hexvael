@@ -54,3 +54,18 @@ func test_projectile_despawned_no_target():
 	var bytes: PackedByteArray = NetMessage.encode_projectile_despawned(event)
 	var decoded = NetMessage.decode_projectile_despawned(bytes)
 	assert_eq(decoded["target_entity_id"], -1)
+
+
+func test_projectile_spawned_preserves_source_position():
+	var event := {
+		"projectile_id": 999,
+		"type_id": 1,
+		"owner_player_id": 42,
+		"origin": Vector2(150.0, 250.0),
+		"direction": Vector2(0.707, 0.707),
+		"input_seq": 88,
+		"source_position": Vector2(110.0, 210.0),
+	}
+	var bytes: PackedByteArray = NetMessage.encode_projectile_spawned(event)
+	var decoded: Dictionary = NetMessage.decode_projectile_spawned(bytes)
+	assert_eq(decoded["source_position"], Vector2(110.0, 210.0))
