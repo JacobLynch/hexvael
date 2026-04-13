@@ -442,6 +442,10 @@ func _server_tick():
 			var baseline = _baselines[player_id]
 			# Check ACK timeout -- fall back to full snapshot
 			if _tick - baseline.tick > MessageTypes.ACK_TIMEOUT_TICKS:
+				# Client stopped ACKing — clear stale unacked snapshots.
+				# The full snapshot below resets the baseline, so old deltas
+				# are no longer useful for compression.
+				_sent_snapshots[player_id].clear()
 				var full_msg = {
 					"type": MessageTypes.Binary.FULL_SNAPSHOT,
 					"tick": _tick,
