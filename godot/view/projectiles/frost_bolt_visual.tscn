@@ -15,6 +15,7 @@ colors = PackedColorArray(0.7, 0.85, 1, 0.8, 0.5, 0.7, 1, 0)
 gradient = SubResource("Gradient_motes")
 
 [node name="FrostBoltVisual" type="Node2D"]
+scale = Vector2(0.6, 0.6)
 script = ExtResource("1_script")
 
 [node name="Glow" type="Polygon2D" parent="."]

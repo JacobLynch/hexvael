@@ -6,7 +6,8 @@ extends Node2D
 ## Maps projectile type_id -> ProjectileEffectParams
 var _effect_params: Dictionary = {}
 
-## Maps projectile_id -> { "last_trail": float, "position": Vector2 }
+## Maps projectile_id -> { "type_id": int, "last_trail": float, "direction": Vector2 }
+## Tracks ALL projectiles (not just those with trails) so we know type_id on despawn.
 var _active_projectiles: Dictionary = {}
 
 ## Reference to projectile system for position lookups
@@ -32,6 +33,13 @@ func _on_projectile_spawned(event: Dictionary) -> void:
 	var pos: Vector2 = event["position"]
 	var dir: Vector2 = event["direction"]
 
+	# Always track projectile so we know type_id on despawn
+	_active_projectiles[proj_id] = {
+		"type_id": type_id,
+		"last_trail": 0.0,
+		"direction": dir,
+	}
+
 	var params: ProjectileEffectParams = _effect_params.get(type_id)
 	if params == null:
 		return
@@ -46,23 +54,21 @@ func _on_projectile_spawned(event: Dictionary) -> void:
 			muzzle.direction = dir
 		add_child(muzzle)
 
-	# Track for trail spawning
-	if params.trail_interval > 0.0 and params.trail_scene != null:
-		_active_projectiles[proj_id] = {
-			"type_id": type_id,
-			"last_trail": 0.0,
-			"direction": dir,
-		}
-
 
 func _on_projectile_despawned(event: Dictionary) -> void:
-	var type_id: int = event["type_id"]
 	var proj_id: int = event["projectile_id"]
 	var pos: Vector2 = event["position"]
 	var reason: int = event["reason"]
 
+	# Get type_id from our tracking (not in event)
+	var tracked: Dictionary = _active_projectiles.get(proj_id, {})
+	var type_id: int = tracked.get("type_id", -1)
+
 	# Stop tracking
 	_active_projectiles.erase(proj_id)
+
+	if type_id < 0:
+		return
 
 	var params: ProjectileEffectParams = _effect_params.get(type_id)
 	if params == null:

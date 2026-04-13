@@ -3,6 +3,7 @@
 [ext_resource type="Script" path="res://view/projectiles/frost_bolt_impact.gd" id="1_script"]
 
 [node name="FrostBoltImpact" type="Node2D"]
+scale = Vector2(0.6, 0.6)
 script = ExtResource("1_script")
 
 [node name="Flash" type="Polygon2D" parent="."]
