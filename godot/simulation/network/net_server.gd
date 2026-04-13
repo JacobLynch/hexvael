@@ -270,8 +270,11 @@ func _on_peer_disconnected(peer_id: int):
 	# Clean up player entity
 	if _player_entities.has(player_id):
 		_movement_system.unregister_player(player_id)
-		_player_entities[player_id].queue_free()
+		var player: PlayerEntity = _player_entities[player_id]
+		# Remove from dictionary BEFORE queue_free to prevent any signal handlers
+		# from accessing the entity during its destruction.
 		_player_entities.erase(player_id)
+		player.queue_free()
 
 	_input_buffer.remove_player(player_id)
 	_baselines.erase(player_id)
