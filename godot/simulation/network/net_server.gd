@@ -268,8 +268,12 @@ func _handle_binary_message(peer_id: int, bytes: PackedByteArray):
 			var aim_dir: Vector2 = msg["aim_direction"]
 			if not (is_finite(move_dir.x) and is_finite(move_dir.y) and is_finite(aim_dir.x) and is_finite(aim_dir.y)):
 				return  # Reject non-finite input
-			if move_dir.length_squared() > 2.5 or aim_dir.length_squared() > 2.5:
-				return  # Reject absurd values; 2.5 gives float headroom above max diagonal (2.0)
+			if move_dir.length_squared() > 2.5:
+				return  # Reject absurd move values; 2.5 gives float headroom above max diagonal (2.0)
+			# Aim direction must be approximately unit length (tolerance: 0.9 to 1.1)
+			var aim_mag_sq: float = aim_dir.length_squared()
+			if aim_mag_sq < 0.81 or aim_mag_sq > 1.21:
+				return  # Reject non-unit aim direction
 			_input_buffer.add_input(player_id, msg)
 		MessageTypes.Binary.SNAPSHOT_ACK:
 			_handle_snapshot_ack(player_id, msg["tick"])
