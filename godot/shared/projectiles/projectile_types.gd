@@ -3,19 +3,23 @@ class_name ProjectileType
 # Legacy enum for backwards compatibility with existing code
 enum Id {
 	TEST = 0,
+	FROST_BOLT = 1,
 }
 
 # String-keyed registry: name -> ProjectileParams resource
 static var _registry: Dictionary = {
 	"test": preload("res://shared/projectiles/test_projectile.tres"),
+	"frost_bolt": preload("res://shared/projectiles/frost_bolt_params.tres"),
 }
 
 # Bidirectional name <-> id mapping for network serialization
 static var _name_to_id: Dictionary = {
 	"test": Id.TEST,
+	"frost_bolt": Id.FROST_BOLT,
 }
 static var _id_to_name: Dictionary = {
 	Id.TEST: "test",
+	Id.FROST_BOLT: "frost_bolt",
 }
 
 # Auto-assigned ids start at 1000 to avoid collisions with legacy enum ids (0-N).
