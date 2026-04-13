@@ -40,6 +40,8 @@ func _on_adopted(event: Dictionary) -> void:
 
 
 func _process(_delta: float) -> void:
+	if _projectile_system == null:
+		return
 	for id in _visuals.keys():
 		var proj: ProjectileEntity = _projectile_system.projectiles.get(id)
 		if proj != null:
