@@ -36,6 +36,10 @@ var _snapshot_time: float = 0.0   # Time since newest snapshot arrived
 var _enemy_prev: Dictionary = {}  # entity_id -> snapshot data
 var _enemy_curr: Dictionary = {}  # entity_id -> snapshot data
 
+# Snapshot object pool to reduce GC pressure
+var _snapshot_pool: Array = []  # Array of Snapshot objects available for reuse
+const _SNAPSHOT_POOL_SIZE: int = 5
+
 # Max remote interpolation t — allows brief extrapolation past the latest snapshot
 # to cover network jitter, preventing the freeze-then-jump stutter.
 # 3.0 = up to 2 ticks of extrapolation (~66ms at 30Hz).
@@ -62,6 +66,18 @@ var dodge_pressed_latch: bool = false
 # the fire button is pressed (left mouse / fire action); cleared by _send_input
 # when the next tick fires. Same cadence-bridging contract as dodge_pressed_latch.
 var fire_pressed_latch: bool = false
+
+
+func _get_pooled_snapshot() -> Snapshot:
+	if _snapshot_pool.is_empty():
+		return Snapshot.new()
+	return _snapshot_pool.pop_back()
+
+
+func _return_to_pool(snap: Snapshot) -> void:
+	if _snapshot_pool.size() < _SNAPSHOT_POOL_SIZE:
+		snap.reset()
+		_snapshot_pool.append(snap)
 
 
 func connect_to_server(address: String, port: int) -> Error:
@@ -220,15 +236,19 @@ func _apply_delta_snapshot(msg: Dictionary):
 	if _snapshot_buffer.is_empty():
 		return  # Need a full snapshot first
 
-	# Create new snapshot by copying latest and applying delta
+	# Get a snapshot from pool or create new
+	var snap: Snapshot = _get_pooled_snapshot()
+
+	# Copy latest snapshot data into pooled object
 	var newest: Snapshot = _snapshot_buffer[-1]
-	var snap = newest.duplicate_snapshot()
+	snap.copy_from(newest)
 	snap.apply_delta(msg["tick"], msg["entities"])
 
-	# Push to buffer, maintain max size
+	# Push to buffer, return evicted snapshot to pool
 	_snapshot_buffer.append(snap)
 	while _snapshot_buffer.size() > SNAPSHOT_BUFFER_SIZE:
-		_snapshot_buffer.pop_front()
+		var evicted: Snapshot = _snapshot_buffer.pop_front()
+		_return_to_pool(evicted)
 
 	_snapshot_time = 0.0
 	_server_tick = msg["tick"]

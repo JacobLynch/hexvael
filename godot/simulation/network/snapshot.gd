@@ -133,3 +133,22 @@ func duplicate_snapshot() -> Snapshot:
 	for eid in enemy_entities:
 		copy.enemy_entities[eid] = enemy_entities[eid].duplicate()
 	return copy
+
+
+## Resets this snapshot for reuse, avoiding allocation of a new Snapshot object.
+func reset() -> void:
+	tick = 0
+	entities.clear()
+	enemy_entities.clear()
+
+
+## Copies data from another snapshot into this one (in-place update).
+## Used for object pooling — avoids allocating a new Snapshot.
+func copy_from(other: Snapshot) -> void:
+	tick = other.tick
+	entities.clear()
+	for eid in other.entities:
+		entities[eid] = other.entities[eid].duplicate()
+	enemy_entities.clear()
+	for eid in other.enemy_entities:
+		enemy_entities[eid] = other.enemy_entities[eid].duplicate()
