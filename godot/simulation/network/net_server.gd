@@ -281,10 +281,15 @@ func _handle_binary_message(peer_id: int, bytes: PackedByteArray):
 
 func _handle_snapshot_ack(player_id: int, ack_tick: int) -> void:
 	if not _sent_snapshots.has(player_id):
+		push_warning("NetServer: ACK from player %d but no sent snapshots recorded" % player_id)
 		return
 	var player_sent = _sent_snapshots[player_id]
 	if not player_sent.has(ack_tick):
-		return  # ACK references unknown tick, ignore
+		# Client ACKed a tick we never sent — could be packet corruption,
+		# replay attack, or malicious client. Log and ignore.
+		push_warning("NetServer: player %d ACKed unknown tick %d (sent: %s)" % [
+			player_id, ack_tick, player_sent.keys()])
+		return
 
 	# Record RTT sample for this ACK
 	_record_snapshot_ack(player_id, ack_tick)
