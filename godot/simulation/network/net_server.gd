@@ -127,14 +127,58 @@ func _accept_connections():
 func _rate_limit_ok(ip: String) -> bool:
 	var now = Time.get_ticks_msec()
 	var cutoff = now - 60_000  # 1 minute window
+
 	if not _connection_attempts.has(ip):
 		_connection_attempts[ip] = []
-	# Prune old entries
+
+	# Prune old entries for this IP
 	_connection_attempts[ip] = _connection_attempts[ip].filter(func(t): return t > cutoff)
+
+	# If this IP has no recent attempts, remove it entirely
+	if _connection_attempts[ip].is_empty():
+		_connection_attempts.erase(ip)
+
+	# Enforce max tracked IPs — drop oldest entries if over limit
+	if _connection_attempts.size() >= MessageTypes.MAX_TRACKED_IPS:
+		_prune_oldest_connection_attempts(cutoff)
+
+	# Re-check after potential pruning
+	if not _connection_attempts.has(ip):
+		_connection_attempts[ip] = []
+
 	if _connection_attempts[ip].size() >= MAX_CONNECTIONS_PER_IP_PER_MINUTE:
 		return false
+
 	_connection_attempts[ip].append(now)
 	return true
+
+
+func _prune_oldest_connection_attempts(cutoff: int) -> void:
+	# Remove all IPs with no recent attempts
+	var ips_to_remove: Array = []
+	for ip in _connection_attempts:
+		_connection_attempts[ip] = _connection_attempts[ip].filter(func(t): return t > cutoff)
+		if _connection_attempts[ip].is_empty():
+			ips_to_remove.append(ip)
+	for ip in ips_to_remove:
+		_connection_attempts.erase(ip)
+
+	# If still over limit, remove IPs with oldest last attempt
+	while _connection_attempts.size() >= MessageTypes.MAX_TRACKED_IPS:
+		var oldest_ip: String = ""
+		var oldest_time: int = Time.get_ticks_msec()
+		for ip in _connection_attempts:
+			if _connection_attempts[ip].is_empty():
+				oldest_ip = ip
+				break
+			var last_attempt: int = _connection_attempts[ip][-1]
+			if last_attempt < oldest_time:
+				oldest_time = last_attempt
+				oldest_ip = ip
+		if oldest_ip != "":
+			_connection_attempts.erase(oldest_ip)
+		else:
+			break
 
 
 func _poll_peers():

@@ -71,3 +71,4 @@ const ACK_TIMEOUT_SECONDS: float = 3.0
 const ACK_TIMEOUT_TICKS: int = int(ACK_TIMEOUT_SECONDS * TICK_RATE)
 const SPAWN_POSITION = Vector2(1200.0, 800.0)  # Center of 2400x1600 arena
 const ZOMBIE_TIMEOUT_MS: int = 10000  # 10 seconds with no data = disconnect
+const MAX_TRACKED_IPS: int = 1000  # Max unique IPs to track for rate limiting
