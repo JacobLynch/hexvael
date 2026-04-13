@@ -9,6 +9,7 @@ var _remote_proxies: Dictionary = {}  # player_id -> StaticBody2D
 var _enemy_proxies: Dictionary = {}  # entity_id -> StaticBody2D
 var _projectile_system: ProjectileSystem = null
 var _projectile_view: ProjectileView = null
+var _projectile_effects: ProjectileEffects = null
 
 
 func _ready():
@@ -37,6 +38,14 @@ func _ready():
 	_projectile_view._projectile_system = _projectile_system
 	_projectile_view._net_client = _net_client
 	add_child(_projectile_view)
+
+	# Projectile effects system — spawns muzzle flashes, trails, and impacts.
+	_projectile_effects = ProjectileEffects.new()
+	_projectile_effects.initialize(_projectile_system)
+	# Register frost bolt effects
+	var frost_effect_params = preload("res://shared/projectiles/frost_bolt_effect_params.tres")
+	_projectile_effects.register_effect_params(ProjectileType.Id.FROST_BOLT, frost_effect_params)
+	add_child(_projectile_effects)
 
 	_world_view.initialize(_net_client)
 	_connection_ui.connect_requested.connect(_on_connect_requested)
