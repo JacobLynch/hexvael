@@ -40,6 +40,7 @@ static func handle_fire(
 			"direction": aim,
 			"input_seq": input["input_seq"],
 			"queue_time_ms": Time.get_ticks_msec(),
+			"source_position": rewound_pos,  # player position for muzzle flash
 		})
 	else:
 		var origin := player.position + aim * params.spawn_offset
