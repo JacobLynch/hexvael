@@ -282,7 +282,7 @@ func _on_peer_disconnected(peer_id: int):
 	_pending_snapshot_sends.erase(player_id)
 	_rtt_samples.erase(player_id)
 	_player_position_history.drop_player(player_id)
-	_projectile_system._fire_cooldown.erase(player_id)
+	_projectile_system.clear_cooldown(player_id)
 	_player_to_peer.erase(player_id)
 	_peer_to_player.erase(peer_id)
 	_peers.erase(peer_id)

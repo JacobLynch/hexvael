@@ -18,14 +18,21 @@ static var _id_to_name: Dictionary = {
 	Id.TEST: "test",
 }
 
+# Auto-assigned ids start at 1000 to avoid collisions with legacy enum ids (0-N).
+static var _auto_id: int = 1000
+
 
 ## Register a new projectile type at runtime.
 ## Call this from game init or mod loading.
-static func register(name: String, params: ProjectileParams, type_id: int = -1) -> void:
-	_registry[name] = params
-	if type_id >= 0:
-		_name_to_id[name] = type_id
-		_id_to_name[type_id] = name
+## If type_id is omitted, an id is auto-assigned starting at 1000 so the type
+## remains network-reachable via get_type_id(name).
+static func register(type_name: String, params: ProjectileParams, type_id: int = -1) -> void:
+	if type_id < 0:
+		type_id = _auto_id
+		_auto_id += 1
+	_registry[type_name] = params
+	_name_to_id[type_name] = type_id
+	_id_to_name[type_id] = type_name
 
 
 ## Unregister a projectile type (for testing or mod unloading).

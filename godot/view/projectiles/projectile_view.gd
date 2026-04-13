@@ -98,7 +98,7 @@ func _make_visual(type_id: int, owner_player_id: int) -> Node2D:
 		var scene = load(params.visual_scene)
 		if scene == null:
 			push_warning("ProjectileView: failed to load visual_scene: %s" % params.visual_scene)
-		elif scene != null:
+		else:
 			var instance = scene.instantiate()
 			if instance is Node2D:
 				return instance

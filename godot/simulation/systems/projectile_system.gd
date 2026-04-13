@@ -173,3 +173,7 @@ func start_cooldown(player_id: int, type_id: int = ProjectileType.Id.TEST) -> vo
 func tick_cooldowns(dt: float) -> void:
 	for id in _fire_cooldown.keys():
 		_fire_cooldown[id] = max(0.0, _fire_cooldown[id] - dt)
+
+
+func clear_cooldown(player_id: int) -> void:
+	_fire_cooldown.erase(player_id)
