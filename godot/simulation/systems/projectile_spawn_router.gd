@@ -13,7 +13,13 @@ static func handle_fire(
 		return
 
 	var aim: Vector2 = player.aim_direction
-	var type_id: int = ProjectileType.Id.TEST
+	# Allow context to override projectile type (for weapons, abilities, etc.)
+	# Default to "test" for backwards compatibility
+	var type_name: String = context.get("projectile_type", "test")
+	var type_id: int = ProjectileType.get_type_id(type_name)
+	if type_id < 0:
+		push_error("ProjectileSpawnRouter: unknown type '%s'" % type_name)
+		return
 	var params: ProjectileParams = ProjectileType.get_params(type_id)
 
 	if context.get("authoritative", false):
@@ -40,4 +46,4 @@ static func handle_fire(
 		projectile_system.spawn_predicted(
 			player.player_id, type_id, origin, aim, input["input_seq"])
 
-	projectile_system.start_cooldown(player.player_id)
+	projectile_system.start_cooldown(player.player_id, type_id)
