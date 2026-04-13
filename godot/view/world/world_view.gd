@@ -37,6 +37,7 @@ func initialize(net_client: NetClient) -> void:
 	add_child(wall_bump)
 	wall_bump.initialize(_camera_rig, _net_client)
 	EventBus.player_dodge_started.connect(_on_any_dodge_started)
+	EventBus.enemy_hit.connect(_on_enemy_hit)
 
 
 func get_player_view_position(player_id: int) -> Variant:
@@ -232,9 +233,24 @@ func _on_any_dodge_started(event: Dictionary):
 			_camera_rig.add_shake(3.0, 0.1)
 
 
+func _on_enemy_hit(event: Dictionary) -> void:
+	var entity_id: int = event.get("entity_id", -1)
+	var flash_color: Color = event.get("flash_color", Color.WHITE)
+	var flash_duration: float = event.get("flash_duration", 0.1)
+
+	if entity_id < 0:
+		return
+
+	var enemy_view = _enemy_views.get(entity_id)
+	if enemy_view != null and enemy_view.has_method("flash_hit"):
+		enemy_view.flash_hit(flash_color, flash_duration)
+
+
 func _exit_tree():
 	if EventBus.player_dodge_started.is_connected(_on_any_dodge_started):
 		EventBus.player_dodge_started.disconnect(_on_any_dodge_started)
+	if EventBus.enemy_hit.is_connected(_on_enemy_hit):
+		EventBus.enemy_hit.disconnect(_on_enemy_hit)
 	if _net_client != null:
 		if _net_client.connected.is_connected(_on_connected):
 			_net_client.connected.disconnect(_on_connected)
