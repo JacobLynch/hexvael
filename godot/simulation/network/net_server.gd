@@ -491,7 +491,7 @@ func _server_tick():
 		# advances by tick_dt during _projectile_system.advance() before broadcast.
 		# Include that simulation time so the client can fast-forward correctly.
 		var wall_clock_age: int = broadcast_time_ms - spawn_event["queue_time_ms"]
-		var tick_age_ms: int = clampi(wall_clock_age + int(MessageTypes.TICK_INTERVAL_MS), 0, 255)
+		var tick_age_ms: int = clampi(wall_clock_age + int(MessageTypes.TICK_INTERVAL_MS), 0, MessageTypes.TICK_AGE_MAX_MS)
 		spawn_event["tick_age_ms"] = tick_age_ms
 		var spawn_msg: PackedByteArray = NetMessage.encode_projectile_spawned(spawn_event)
 		for peer_id in _peers:
@@ -503,7 +503,7 @@ func _server_tick():
 	for despawn in despawns:
 		if despawn["reason"] == ProjectileEntity.DespawnReason.REJECTED:
 			continue  # client-only reason, never broadcast
-		var despawn_tick_age_ms: int = clampi(broadcast_time_ms - advance_start_ms, 0, 255)
+		var despawn_tick_age_ms: int = clampi(broadcast_time_ms - advance_start_ms, 0, MessageTypes.TICK_AGE_MAX_MS)
 		var despawn_msg: PackedByteArray = NetMessage.encode_projectile_despawned({
 			"projectile_id": despawn["id"],
 			"reason": despawn["reason"],
