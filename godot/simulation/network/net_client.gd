@@ -192,7 +192,8 @@ func _handle_projectile_spawned(bytes: PackedByteArray) -> void:
 		event["direction"],
 		event["input_seq"],
 		get_rtt_ms(),
-		event.get("tick_age_ms", 0))
+		event.get("tick_age_ms", 0),
+		event.get("source_position", event["origin"]))
 
 
 func _handle_projectile_despawned(bytes: PackedByteArray) -> void:
