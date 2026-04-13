@@ -256,7 +256,9 @@ func _handle_binary_message(peer_id: int, bytes: PackedByteArray):
 	_last_activity[peer_id] = Time.get_ticks_msec()
 	var msg = NetMessage.decode_binary(bytes)
 	if msg == null:
-		return  # Malformed -- silently drop
+		push_warning("NetServer: malformed packet from peer %d (%d bytes, first byte: %d)" % [
+			peer_id, bytes.size(), bytes[0] if bytes.size() > 0 else -1])
+		return
 
 	var player_id = _peer_to_player.get(peer_id, -1)
 	if player_id == -1:
