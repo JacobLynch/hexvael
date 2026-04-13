@@ -87,6 +87,30 @@ func _on_despawned(event: Dictionary) -> void:
 
 
 func _make_visual(type_id: int, owner_player_id: int) -> Node2D:
+	var params: ProjectileParams = ProjectileType.get_params(type_id)
+
+	if params == null:
+		push_warning("ProjectileView: invalid type_id %d" % type_id)
+		return _make_default_visual(owner_player_id)
+
+	# If params specifies a visual scene, use it
+	if not params.visual_scene.is_empty():
+		var scene = load(params.visual_scene)
+		if scene == null:
+			push_warning("ProjectileView: failed to load visual_scene: %s" % params.visual_scene)
+		elif scene != null:
+			var instance = scene.instantiate()
+			if instance is Node2D:
+				return instance
+			else:
+				push_warning("ProjectileView: visual_scene is not Node2D: %s" % params.visual_scene)
+				instance.queue_free()
+
+	# Default: procedural polygon
+	return _make_default_visual(owner_player_id)
+
+
+func _make_default_visual(owner_player_id: int) -> Node2D:
 	var node := Node2D.new()
 	var polygon := Polygon2D.new()
 	polygon.color = _color_for_owner(owner_player_id)
