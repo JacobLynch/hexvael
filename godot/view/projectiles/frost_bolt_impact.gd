@@ -2,8 +2,8 @@ class_name FrostBoltImpact
 extends Node2D
 ## Impact shatter effect for frost bolt. Spawns angular fragments that scatter.
 
-const DURATION: float = 0.5
-const FRAGMENT_COUNT: int = 12
+const DURATION: float = 0.6
+const FRAGMENT_COUNT: int = 10
 
 @onready var flash: Polygon2D = $Flash
 @onready var light: PointLight2D = $Light
@@ -30,7 +30,7 @@ func _spawn_fragments() -> void:
 
 func _create_fragment() -> Polygon2D:
 	var frag = Polygon2D.new()
-	var size = 4.0 + randf() * 6.0
+	var size = 6.0 + randf() * 8.0  # Bigger fragments
 	# Angular shard shape
 	frag.polygon = PackedVector2Array([
 		Vector2(-size, 0),
@@ -39,7 +39,7 @@ func _create_fragment() -> Polygon2D:
 		Vector2(size * 0.6, size * 0.4),
 		Vector2(-size * 0.3, size * 0.5),
 	])
-	frag.color = Color(0.75, 0.9, 1.0, 0.9)
+	frag.color = Color(0.8, 0.95, 1.0, 1.0)  # Brighter
 	return frag
 
 
@@ -74,8 +74,8 @@ func _process(delta: float) -> void:
 		frag.position += vel * delta
 		frag.rotation += rot_speed * delta
 
-		# Slow down and shrink
-		vel *= 0.95
+		# Slow down and shrink (gentler fade)
+		vel *= 0.96
 		frag.set_meta("velocity", vel)
-		frag.scale *= (1.0 - delta * 2.0)
-		frag.modulate.a -= delta * 2.0
+		frag.scale *= (1.0 - delta * 1.2)
+		frag.modulate.a -= delta * 1.5

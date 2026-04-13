@@ -54,6 +54,9 @@ func _on_spawned(event: Dictionary) -> void:
 		return
 	var node := _make_visual(event["type_id"], event["owner_player_id"])
 	node.position = event["position"]
+	# Rotate visual to match projectile direction
+	var dir: Vector2 = event.get("direction", Vector2.RIGHT)
+	node.rotation = dir.angle()
 	add_child(node)
 	_visuals[id] = node
 

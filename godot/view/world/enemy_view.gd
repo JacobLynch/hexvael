@@ -171,5 +171,7 @@ func flash_hit(color: Color, duration: float) -> void:
 		return
 	var original_color = ENEMY_COLOR
 	_visual.color = color
+	# Brief hold at flash color, then fade back
 	var tween = create_tween()
-	tween.tween_property(_visual, "color", original_color, duration)
+	tween.tween_interval(duration * 0.3)  # Hold
+	tween.tween_property(_visual, "color", original_color, duration * 0.7)
