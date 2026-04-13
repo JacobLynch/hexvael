@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="ProjectileParams" load_steps=2 format=3 uid="uid://frost_bolt_params"]
+
+[ext_resource type="Script" path="res://shared/projectiles/projectile_params.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+speed = 500.0
+lifetime = 1.5
+radius = 6.0
+spawn_offset = 40.0
+spawn_grace = 0.10
+fire_cooldown = 0.25
+impact_force = 0.0
+movement_type = 0
+visual_scene = "res://view/projectiles/frost_bolt_visual.tscn"
