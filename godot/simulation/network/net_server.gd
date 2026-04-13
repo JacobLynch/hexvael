@@ -584,3 +584,8 @@ func get_rtt_ms(player_id: int) -> int:
 
 func get_enemy_system() -> EnemySystem:
 	return _enemy_system
+
+
+func _exit_tree():
+	if EventBus.enemy_died.is_connected(_on_enemy_died):
+		EventBus.enemy_died.disconnect(_on_enemy_died)
