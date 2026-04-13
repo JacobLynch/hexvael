@@ -8,3 +8,9 @@ extends Resource
 @export var spawn_grace: float = 0.10
 @export var fire_cooldown: float = 0.20
 @export var impact_force: float = 0.0
+
+## Movement behavior type — see ProjectileMovement.Type enum
+@export var movement_type: int = 0  # ProjectileMovement.Type.STRAIGHT
+
+## Optional: path to visual scene to instantiate (empty = default polygon)
+@export var visual_scene: String = ""

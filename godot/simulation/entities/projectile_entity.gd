@@ -64,8 +64,8 @@ func start_reconcile(target: Vector2) -> void:
 # Dt-independent step. Called by server tick AND client prediction.
 # Returns a DespawnReason if killed this step, else ALIVE.
 func advance(dt: float, walls: Array, players: Array, enemies: Array) -> int:
-	# 1. Motion (straight-line — trivially dt-independent)
-	position += direction * params.speed * dt
+	# 1. Motion — delegate to movement strategy
+	ProjectileMovement.apply(self, dt, params.movement_type)
 
 	# 2. Timers
 	time_remaining -= dt
