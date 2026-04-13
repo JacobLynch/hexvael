@@ -46,6 +46,7 @@ func _ready():
 	var frost_effect_params = preload("res://shared/projectiles/frost_bolt_effect_params.tres")
 	_projectile_effects.register_effect_params(ProjectileType.Id.FROST_BOLT, frost_effect_params)
 	add_child(_projectile_effects)
+	_projectile_effects.set_net_client(_net_client)
 
 	_world_view.initialize(_net_client)
 	_connection_ui.connect_requested.connect(_on_connect_requested)
@@ -105,6 +106,14 @@ func _process(delta: float):
 			_net_client.dodge_pressed_latch = true
 		if _input_provider.consume_fire_press():
 			_net_client.fire_pressed_latch = true
+			# Spawn muzzle flash immediately at player position for instant feedback.
+			# This happens before projectile spawn so the flash appears at the player,
+			# not offset to the projectile origin.
+			if _local_player != null and _projectile_effects != null:
+				var aim_dir: Vector2 = _local_player.aim_direction
+				_projectile_effects.spawn_local_muzzle_flash(
+					_local_player.position, aim_dir, ProjectileType.Id.FROST_BOLT)
+
 			# Spawn a predicted projectile immediately for responsive feel.
 			# The input_seq used here must match what _send_input will stamp on
 			# the FIRE packet: _input_seq increments at the START of _send_input,

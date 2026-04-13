@@ -13,6 +13,14 @@ var _active_projectiles: Dictionary = {}
 ## Reference to projectile system for position lookups
 var _projectile_system: ProjectileSystem
 
+## Reference to net client for local player check
+var _net_client: NetClient
+
+
+## Set by client_main after connection
+func set_net_client(net_client: NetClient) -> void:
+	_net_client = net_client
+
 
 func initialize(projectile_system: ProjectileSystem) -> void:
 	_projectile_system = projectile_system
@@ -25,6 +33,30 @@ func register_effect_params(type_id: int, params: ProjectileEffectParams) -> voi
 func _ready() -> void:
 	EventBus.projectile_spawned.connect(_on_projectile_spawned)
 	EventBus.projectile_despawned.connect(_on_projectile_despawned)
+	EventBus.projectile_adopted.connect(_on_projectile_adopted)
+
+
+func _on_projectile_adopted(event: Dictionary) -> void:
+	# Remap tracking from temp_id to new_id so despawn lookup succeeds.
+	var temp_id: int = event["temp_id"]
+	var new_id: int = event["new_id"]
+	if not _active_projectiles.has(temp_id):
+		return
+	_active_projectiles[new_id] = _active_projectiles[temp_id]
+	_active_projectiles.erase(temp_id)
+
+
+## Spawns muzzle flash for local player. Called directly from input handling
+## for instant feedback, bypassing the event system.
+func spawn_local_muzzle_flash(pos: Vector2, dir: Vector2, type_id: int) -> void:
+	var params: ProjectileEffectParams = _effect_params.get(type_id)
+	if params == null or params.muzzle_scene == null:
+		return
+	var muzzle = params.muzzle_scene.instantiate()
+	muzzle.position = pos
+	if muzzle.get("direction") != null:
+		muzzle.direction = dir
+	add_child(muzzle)
 
 
 func _on_projectile_spawned(event: Dictionary) -> void:
@@ -32,6 +64,7 @@ func _on_projectile_spawned(event: Dictionary) -> void:
 	var proj_id: int = event["projectile_id"]
 	var pos: Vector2 = event["position"]
 	var dir: Vector2 = event["direction"]
+	var owner_id: int = event.get("owner_player_id", -1)
 
 	# Always track projectile so we know type_id on despawn
 	_active_projectiles[proj_id] = {
@@ -44,13 +77,18 @@ func _on_projectile_spawned(event: Dictionary) -> void:
 	if params == null:
 		return
 
-	# Spawn muzzle flash at fire position
-	if params.muzzle_scene != null:
+	# Skip muzzle flash for local player — handled by spawn_local_muzzle_flash
+	# for instant feedback. Only spawn for remote players.
+	var local_id: int = -1
+	if _net_client != null:
+		local_id = _net_client.get_local_player_id()
+
+	if owner_id != local_id and params.muzzle_scene != null:
+		# Use source_position for muzzle flash (player position, not projectile offset)
+		var muzzle_pos: Vector2 = event.get("source_position", pos)
 		var muzzle = params.muzzle_scene.instantiate()
-		muzzle.position = pos
-		if muzzle.has_method("set") and "direction" in muzzle:
-			muzzle.direction = dir
-		elif muzzle.get("direction") != null:
+		muzzle.position = muzzle_pos
+		if muzzle.get("direction") != null:
 			muzzle.direction = dir
 		add_child(muzzle)
 
@@ -144,3 +182,5 @@ func _exit_tree() -> void:
 		EventBus.projectile_spawned.disconnect(_on_projectile_spawned)
 	if EventBus.projectile_despawned.is_connected(_on_projectile_despawned):
 		EventBus.projectile_despawned.disconnect(_on_projectile_despawned)
+	if EventBus.projectile_adopted.is_connected(_on_projectile_adopted):
+		EventBus.projectile_adopted.disconnect(_on_projectile_adopted)
