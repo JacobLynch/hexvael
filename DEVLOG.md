@@ -1,5 +1,20 @@
 # Devlog
 
+## 2026-04-12
+- Network hardening pass + projectile system refactor on `multiplayer-projectiles` branch, preparing for PR and merge
+- Wrote network hardening design spec and implementation plan docs before touching code, then worked through the list
+- Input validation and rate limiting: per-player input rate limit (drops excess inputs), `aim_direction` unit-vector validation on decode, log warnings for malformed packets and for ACKs referencing unknown snapshot ticks instead of silent drops
+- Memory bounds: `connection_attempts` dictionary bounded so repeat-connect flooding can't grow it unbounded, erase player from server dict *before* `queue_free` to avoid dangling reads, clear stale entries from per-player pending-snapshot buffer on ACK timeout
+- Signal lifecycle: `NetServer`, `WorldView`, and `ProjectileView` all disconnect their `EventBus` listeners in `_exit_tree` so scene reloads and quit don't leave dangling connections firing into freed nodes
+- Perf: `SnapshotPool` object pooling for snapshot dicts reduces GC pressure under steady tick rate; `NetClient` uses `pop_front` instead of `slice` for pending-input trimming; extracted `TICK_AGE_MAX_MS` constant to one place
+- Projectile system refactor (foundation for multiple types, base behavior unchanged): string-keyed `ProjectileTypeRegistry`, movement strategy pattern so types can implement their own `advance` math, type selection passed through `ProjectileSpawnRouter` via context dict, data-driven visual instantiation (visual scene/tint/size sit on the type resource instead of hardcoded in `ProjectileView`)
+- Fire latch fix: `KeyboardMouseInputProvider` is `RefCounted` and can't receive Godot input events directly, so it polls via its owner node and sets the latch there; adoption rekey path in `ProjectileView` updated so the view follows the authoritative id after `adopt_authoritative`
+- `ProjectileView._process` null guard covers the mid-tick despawn frame ordering edge
+- Viewport default size tweak, minor doc updates
+- Tests still green: added coverage for signal cleanup regressions, rate limiter, unit-vector validation, snapshot pool round-trips, projectile registry and strategy dispatch
+- Not in this PR: damage/health, additional projectile type variants (only the straight-line base is registered), Phase 6 lag compensation against moving targets
+- Next session: manual two-browser smoke test, merge, then move to damage/health (step 2 combat half continues)
+
 ## 2026-04-11
 - Projectile networking phase 4 complete on `multiplayer-projectiles` branch
 - Server tick rate bumped 20 → 30 Hz (tighter input latency, smoother remote interpolation, better collision fidelity against fast projectiles)
