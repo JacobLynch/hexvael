@@ -162,3 +162,12 @@ func _spawn_particle_burst(pos: Vector2, color: Color, count: int) -> void:
 	add_child(particles)
 	particles.emitting = true
 	get_tree().create_timer(0.5).timeout.connect(particles.queue_free)
+
+
+func _exit_tree() -> void:
+	if EventBus.projectile_spawned.is_connected(_on_spawned):
+		EventBus.projectile_spawned.disconnect(_on_spawned)
+	if EventBus.projectile_despawned.is_connected(_on_despawned):
+		EventBus.projectile_despawned.disconnect(_on_despawned)
+	if EventBus.projectile_adopted.is_connected(_on_adopted):
+		EventBus.projectile_adopted.disconnect(_on_adopted)
