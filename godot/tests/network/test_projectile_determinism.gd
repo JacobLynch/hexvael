@@ -59,6 +59,7 @@ func _run_server_fire_tick(aim: Vector2) -> Array:
 			"position_history": hist,
 			"tick":             TICK,
 			"spawn_events":     spawn_events,
+			"projectile_type":  "test",
 		}
 		ProjectileSpawnRouter.handle_fire(player, inp, ps, ctx)
 	return spawn_events

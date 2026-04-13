@@ -47,7 +47,7 @@ func test_client_branch_spawns_predicted_from_player_position():
 		"action_flags": MessageTypes.InputActionFlags.FIRE,
 		"input_seq": 1,
 	}
-	ProjectileSpawnRouter.handle_fire(player, input, sys, {"authoritative": false})
+	ProjectileSpawnRouter.handle_fire(player, input, sys, {"authoritative": false, "projectile_type": "test"})
 	assert_eq(sys.projectiles.size(), 1)
 	assert_true(sys.projectiles.has(-1))   # negative temp id
 	var proj: ProjectileEntity = sys.projectiles[-1]
@@ -74,6 +74,7 @@ func test_server_branch_rewinds_from_history_and_fast_forwards():
 		"position_history": history,
 		"tick": 105,
 		"spawn_events": spawn_events,
+		"projectile_type": "test",
 	}
 	var input = {
 		"action_flags": MessageTypes.InputActionFlags.FIRE,
