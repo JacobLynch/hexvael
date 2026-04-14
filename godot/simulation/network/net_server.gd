@@ -240,6 +240,9 @@ func _on_peer_connected(peer_id: int):
 	# Set baseline for delta compression
 	_baselines[player_id] = snap
 
+	# Initialize sent snapshots tracking so ACKs for the initial snapshot don't warn
+	_sent_snapshots[player_id] = {_tick: snap}
+
 	# Notify other clients
 	var join_msg = NetMessage.encode_json({
 		"type": MessageTypes.JsonMsg.PLAYER_JOINED,
