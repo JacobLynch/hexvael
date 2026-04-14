@@ -13,10 +13,10 @@ $GODOT --headless --path "$PROJECT" res://server.tscn -- --port 9050 &
 
 sleep 0.5  # Let server bind port
 
-# Client 1 — left half
-$GODOT --path "$PROJECT" --resolution 640x720 --position 0,25 -- --server localhost --port 9050 --dev &
+# Client 1 — left half (adjust resolution for your screen)
+$GODOT --path "$PROJECT" --resolution 960x720 --position 0,45 -- --server localhost --port 9050 --dev &
 
 # Client 2 — right half
-$GODOT --path "$PROJECT" --resolution 640x720 --position 640,25 -- --server localhost --port 9050 --dev &
+$GODOT --path "$PROJECT" --resolution 960x720 --position 960,45 -- --server localhost --port 9050 --dev &
 
 wait
