@@ -17,3 +17,6 @@ Thumbs.db
 
 # Brainstorm mockups
 .superpowers/
+
+# Local dev scripts (machine-specific paths)
+dev-local.sh
