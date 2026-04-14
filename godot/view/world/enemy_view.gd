@@ -163,3 +163,15 @@ func _play_spawn_pop() -> void:
 	_visual.color = Color(1.0, 1.0, 0.85)
 	var color_tween = create_tween()
 	color_tween.tween_property(_visual, "color", ENEMY_COLOR, 0.25)
+
+
+## Flash the enemy visual to indicate a hit.
+func flash_hit(color: Color, duration: float) -> void:
+	if _visual == null:
+		return
+	var original_color = ENEMY_COLOR
+	_visual.color = color
+	# Brief hold at flash color, then fade back
+	var tween = create_tween()
+	tween.tween_interval(duration * 0.3)  # Hold
+	tween.tween_property(_visual, "color", original_color, duration * 0.7)

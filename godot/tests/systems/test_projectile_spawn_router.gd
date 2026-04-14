@@ -47,7 +47,7 @@ func test_client_branch_spawns_predicted_from_player_position():
 		"action_flags": MessageTypes.InputActionFlags.FIRE,
 		"input_seq": 1,
 	}
-	ProjectileSpawnRouter.handle_fire(player, input, sys, {"authoritative": false})
+	ProjectileSpawnRouter.handle_fire(player, input, sys, {"authoritative": false, "projectile_type": "test"})
 	assert_eq(sys.projectiles.size(), 1)
 	assert_true(sys.projectiles.has(-1))   # negative temp id
 	var proj: ProjectileEntity = sys.projectiles[-1]
@@ -74,6 +74,7 @@ func test_server_branch_rewinds_from_history_and_fast_forwards():
 		"position_history": history,
 		"tick": 105,
 		"spawn_events": spawn_events,
+		"projectile_type": "test",
 	}
 	var input = {
 		"action_flags": MessageTypes.InputActionFlags.FIRE,
@@ -84,3 +85,29 @@ func test_server_branch_rewinds_from_history_and_fast_forwards():
 	assert_eq(spawn_events.size(), 1)
 	assert_eq(spawn_events[0]["owner_player_id"], 42)
 	assert_eq(spawn_events[0]["input_seq"], 77)
+
+func test_authoritative_spawn_event_includes_source_position():
+	var history := PlayerPositionHistory.new()
+	var sys := _make_system()
+	var player := _make_player(42, Vector2(100, 100))
+	# Record position at tick 100
+	history.record(42, 100, Vector2(100, 100))
+
+	var spawn_events: Array = []
+	var context := {
+		"authoritative": true,
+		"rtt_ms": 0,
+		"position_history": history,
+		"tick": 100,
+		"spawn_events": spawn_events,
+		"projectile_type": "test",
+	}
+	var input := {
+		"action_flags": MessageTypes.InputActionFlags.FIRE,
+		"input_seq": 99,
+	}
+	ProjectileSpawnRouter.handle_fire(player, input, sys, context)
+
+	assert_eq(spawn_events.size(), 1)
+	assert_true(spawn_events[0].has("source_position"), "spawn event must include source_position")
+	assert_eq(spawn_events[0]["source_position"], Vector2(100, 100))

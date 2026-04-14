@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="ProjectileEffectParams" load_steps=5 format=3 uid="uid://frost_bolt_effect_params"]
+
+[ext_resource type="Script" path="res://view/projectiles/projectile_effect_params.gd" id="1_script"]
+[ext_resource type="PackedScene" path="res://view/projectiles/frost_bolt_muzzle.tscn" id="2_muzzle"]
+[ext_resource type="PackedScene" path="res://view/projectiles/frost_bolt_impact.tscn" id="3_impact"]
+[ext_resource type="PackedScene" path="res://view/projectiles/frost_bolt_shard.tscn" id="4_shard"]
+
+[resource]
+script = ExtResource("1_script")
+muzzle_scene = ExtResource("2_muzzle")
+impact_scene = ExtResource("3_impact")
+expire_scene = null
+trail_interval = 0.1
+trail_scene = ExtResource("4_shard")
+enemy_flash_color = Color(0.8, 0.95, 1, 1)
+enemy_flash_duration = 0.1

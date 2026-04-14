@@ -9,6 +9,13 @@ var _remote_proxies: Dictionary = {}  # player_id -> StaticBody2D
 var _enemy_proxies: Dictionary = {}  # entity_id -> StaticBody2D
 var _projectile_system: ProjectileSystem = null
 var _projectile_view: ProjectileView = null
+var _projectile_effects: ProjectileEffects = null
+var _dev_mode: bool = false
+var _auto_fire: bool = false
+var _auto_fire_timer: float = 0.0
+const AUTO_FIRE_INTERVAL: float = 0.3
+const TIME_SCALES: Array[float] = [1.0, 0.5, 0.25, 0.125]
+var _time_scale_index: int = 0
 
 
 func _ready():
@@ -38,6 +45,15 @@ func _ready():
 	_projectile_view._net_client = _net_client
 	add_child(_projectile_view)
 
+	# Projectile effects system — spawns muzzle flashes, trails, and impacts.
+	_projectile_effects = ProjectileEffects.new()
+	_projectile_effects.initialize(_projectile_system)
+	# Register frost bolt effects
+	var frost_effect_params = preload("res://shared/projectiles/frost_bolt_effect_params.tres")
+	_projectile_effects.register_effect_params(ProjectileType.Id.FROST_BOLT, frost_effect_params)
+	add_child(_projectile_effects)
+	_projectile_effects.set_net_client(_net_client)
+
 	_world_view.initialize(_net_client)
 	_connection_ui.connect_requested.connect(_on_connect_requested)
 	_net_client.connected.connect(_on_connected)
@@ -46,7 +62,7 @@ func _ready():
 	_net_client.player_left.connect(_on_player_left)
 	_net_client.snapshot_received.connect(_on_snapshot)
 
-	# Auto-connect if CLI args provided: -- --server localhost --port 9050
+	# Auto-connect if CLI args provided: -- --server localhost --port 9050 --dev
 	var address := ""
 	var port := 0
 	var args = OS.get_cmdline_user_args()
@@ -55,6 +71,9 @@ func _ready():
 			address = args[i + 1]
 		if args[i] == "--port" and i + 1 < args.size():
 			port = int(args[i + 1])
+		if args[i] == "--dev":
+			_dev_mode = true
+			print("Dev mode enabled — F2 toggles auto-fire, F3 cycles game speed")
 	if not address.is_empty():
 		if port <= 0:
 			port = 9050
@@ -96,6 +115,14 @@ func _process(delta: float):
 			_net_client.dodge_pressed_latch = true
 		if _input_provider.consume_fire_press():
 			_net_client.fire_pressed_latch = true
+			# Spawn muzzle flash immediately at player position for instant feedback.
+			# This happens before projectile spawn so the flash appears at the player,
+			# not offset to the projectile origin.
+			if _local_player != null and _projectile_effects != null:
+				var aim_dir: Vector2 = _local_player.aim_direction
+				_projectile_effects.spawn_local_muzzle_flash(
+					_local_player.position, aim_dir, ProjectileType.Id.FROST_BOLT)
+
 			# Spawn a predicted projectile immediately for responsive feel.
 			# The input_seq used here must match what _send_input will stamp on
 			# the FIRE packet: _input_seq increments at the START of _send_input,
@@ -106,6 +133,22 @@ func _process(delta: float):
 					"input_seq": _net_client._input_seq + 1,
 				}, _projectile_system, {"authoritative": false})
 
+		# Dev mode: auto-fire when enabled
+		if _dev_mode and _auto_fire:
+			_auto_fire_timer -= delta
+			if _auto_fire_timer <= 0.0:
+				_auto_fire_timer = AUTO_FIRE_INTERVAL
+				_net_client.fire_pressed_latch = true
+				if _local_player != null and _projectile_effects != null:
+					var aim_dir: Vector2 = _local_player.aim_direction
+					_projectile_effects.spawn_local_muzzle_flash(
+						_local_player.position, aim_dir, ProjectileType.Id.FROST_BOLT)
+				if _local_player != null and _projectile_system != null:
+					ProjectileSpawnRouter.handle_fire(_local_player, {
+						"action_flags": MessageTypes.InputActionFlags.FIRE,
+						"input_seq": _net_client._input_seq + 1,
+					}, _projectile_system, {"authoritative": false})
+
 		# Tick cooldowns and advance client-side projectile simulation.
 		# Empty player/enemy arrays: client checks walls only.
 		if _projectile_system != null:
@@ -115,6 +158,22 @@ func _process(delta: float):
 
 		_update_remote_proxies()
 		_update_enemy_proxies()
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if not _dev_mode:
+		return
+	if event is InputEventKey and event.pressed and event.keycode == KEY_F2:
+		_auto_fire = not _auto_fire
+		if _auto_fire:
+			_auto_fire_timer = 0.0  # Fire immediately on enable
+			print("Auto-fire ON")
+		else:
+			print("Auto-fire OFF")
+	if event is InputEventKey and event.pressed and event.keycode == KEY_F3:
+		_time_scale_index = (_time_scale_index + 1) % TIME_SCALES.size()
+		Engine.time_scale = TIME_SCALES[_time_scale_index]
+		print("Game speed: %sx" % TIME_SCALES[_time_scale_index])
 
 
 func _on_player_joined(player_id: int, spawn_position: Vector2):

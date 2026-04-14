@@ -68,7 +68,8 @@ const _RECONCILE_SNAP_THRESHOLD: float = 200.0
 func adopt_authoritative(
 		projectile_id: int, owner_id: int, type_id: int,
 		origin: Vector2, direction: Vector2,
-		input_seq: int, current_rtt_ms: int, tick_age_ms: int = 0) -> void:
+		input_seq: int, current_rtt_ms: int, tick_age_ms: int = 0,
+		source_position: Vector2 = Vector2.ZERO) -> void:
 	var temp_id: int = -input_seq
 	# Total delay = time from event to broadcast (tick_age) + network latency (RTT/2)
 	var total_delay_s: float = (tick_age_ms + current_rtt_ms / 2.0) / 1000.0
@@ -109,6 +110,7 @@ func adopt_authoritative(
 		"owner_player_id": owner_id,
 		"position": spawn_pos,
 		"direction": direction,
+		"source_position": source_position,
 	})
 
 

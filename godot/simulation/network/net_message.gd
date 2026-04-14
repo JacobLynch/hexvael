@@ -249,13 +249,14 @@ static func decode_projectile_spawned(bytes: PackedByteArray) -> Dictionary:
 # --- Private: Projectile Spawned ---
 # Format: [type:u8][projectile_id:u16][type_id:u8][owner_player_id:u16]
 #         [origin_x:f32][origin_y:f32][dir_x:f32][dir_y:f32][input_seq:u32]
-#         [tick_age_ms:u8]
+#         [tick_age_ms:u8][source_x:f32][source_y:f32]
 
 static func _encode_projectile_spawned(event: Dictionary) -> PackedByteArray:
 	var buf = PackedByteArray()
 	buf.resize(MessageTypes.Layout.PROJECTILE_SPAWNED_SIZE)
 	var origin: Vector2 = event["origin"]
 	var direction: Vector2 = event["direction"]
+	var source_pos: Vector2 = event.get("source_position", origin)
 	buf.encode_u8(0, MessageTypes.Binary.PROJECTILE_SPAWNED)
 	buf.encode_u16(1, event["projectile_id"])
 	buf.encode_u8(3, event["type_id"])
@@ -266,6 +267,8 @@ static func _encode_projectile_spawned(event: Dictionary) -> PackedByteArray:
 	buf.encode_float(18, direction.y)
 	buf.encode_u32(22, event["input_seq"])
 	buf.encode_u8(26, event.get("tick_age_ms", 0))
+	buf.encode_float(27, source_pos.x)
+	buf.encode_float(31, source_pos.y)
 	return buf
 
 
@@ -281,6 +284,7 @@ static func _decode_projectile_spawned(bytes: PackedByteArray) -> Variant:
 		"direction": Vector2(bytes.decode_float(14), bytes.decode_float(18)),
 		"input_seq": bytes.decode_u32(22),
 		"tick_age_ms": bytes.decode_u8(26),
+		"source_position": Vector2(bytes.decode_float(27), bytes.decode_float(31)),
 	}
 
 
