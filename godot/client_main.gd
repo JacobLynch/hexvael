@@ -131,6 +131,22 @@ func _process(delta: float):
 					"input_seq": _net_client._input_seq + 1,
 				}, _projectile_system, {"authoritative": false})
 
+		# Dev mode: auto-fire when enabled
+		if _dev_mode and _auto_fire:
+			_auto_fire_timer -= delta
+			if _auto_fire_timer <= 0.0:
+				_auto_fire_timer = AUTO_FIRE_INTERVAL
+				_net_client.fire_pressed_latch = true
+				if _local_player != null and _projectile_effects != null:
+					var aim_dir: Vector2 = _local_player.aim_direction
+					_projectile_effects.spawn_local_muzzle_flash(
+						_local_player.position, aim_dir, ProjectileType.Id.FROST_BOLT)
+				if _local_player != null and _projectile_system != null:
+					ProjectileSpawnRouter.handle_fire(_local_player, {
+						"action_flags": MessageTypes.InputActionFlags.FIRE,
+						"input_seq": _net_client._input_seq + 1,
+					}, _projectile_system, {"authoritative": false})
+
 		# Tick cooldowns and advance client-side projectile simulation.
 		# Empty player/enemy arrays: client checks walls only.
 		if _projectile_system != null:
