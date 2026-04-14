@@ -10,6 +10,10 @@ var _enemy_proxies: Dictionary = {}  # entity_id -> StaticBody2D
 var _projectile_system: ProjectileSystem = null
 var _projectile_view: ProjectileView = null
 var _projectile_effects: ProjectileEffects = null
+var _dev_mode: bool = false
+var _auto_fire: bool = false
+var _auto_fire_timer: float = 0.0
+const AUTO_FIRE_INTERVAL: float = 0.3
 
 
 func _ready():
@@ -56,7 +60,7 @@ func _ready():
 	_net_client.player_left.connect(_on_player_left)
 	_net_client.snapshot_received.connect(_on_snapshot)
 
-	# Auto-connect if CLI args provided: -- --server localhost --port 9050
+	# Auto-connect if CLI args provided: -- --server localhost --port 9050 --dev
 	var address := ""
 	var port := 0
 	var args = OS.get_cmdline_user_args()
@@ -65,6 +69,9 @@ func _ready():
 			address = args[i + 1]
 		if args[i] == "--port" and i + 1 < args.size():
 			port = int(args[i + 1])
+		if args[i] == "--dev":
+			_dev_mode = true
+			print("Dev mode enabled — F2 toggles auto-fire")
 	if not address.is_empty():
 		if port <= 0:
 			port = 9050
