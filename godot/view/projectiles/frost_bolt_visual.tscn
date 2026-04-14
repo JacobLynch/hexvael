@@ -1,12 +1,25 @@
-[gd_scene load_steps=5 format=3 uid="uid://frost_bolt_visual"]
+[gd_scene load_steps=7 format=3 uid="uid://frost_bolt_visual"]
 
 [ext_resource type="Script" path="res://view/projectiles/frost_bolt_visual.gd" id="1_script"]
-[ext_resource type="Shader" path="res://view/shaders/chromatic_aberration.gdshader" id="2_shader"]
+[ext_resource type="Shader" path="res://view/shaders/frost_bolt_core.gdshader" id="2_shader_core"]
+[ext_resource type="Shader" path="res://view/shaders/frost_bolt_glow.gdshader" id="3_shader_glow"]
 
-[sub_resource type="ShaderMaterial" id="ShaderMaterial_bolt"]
-shader = ExtResource("2_shader")
-shader_parameter/offset = 2.5
-shader_parameter/strength = 0.25
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_core"]
+shader = ExtResource("2_shader_core")
+shader_parameter/pulse_speed = 14.0
+shader_parameter/pulse_min = 0.8
+shader_parameter/frost_scale = 0.1
+shader_parameter/frost_intensity = 0.4
+shader_parameter/core_color = Color(0.85, 0.95, 1.0, 1.0)
+shader_parameter/edge_color = Color(0.4, 0.6, 1.0, 1.0)
+shader_parameter/bolt_width = 7.0
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_glow"]
+shader = ExtResource("3_shader_glow")
+shader_parameter/pulse_speed = 11.0
+shader_parameter/pulse_min = 0.65
+shader_parameter/glow_width = 12.0
+shader_parameter/glow_color = Color(0.35, 0.55, 1.0, 0.6)
 
 [sub_resource type="Gradient" id="Gradient_motes"]
 colors = PackedColorArray(0.7, 0.85, 1, 0.8, 0.5, 0.7, 1, 0)
@@ -19,18 +32,19 @@ scale = Vector2(0.6, 0.6)
 script = ExtResource("1_script")
 
 [node name="Glow" type="Polygon2D" parent="."]
-color = Color(0.4, 0.6, 1, 0.3)
-polygon = PackedVector2Array(-30, 0, -18, -10, 24, -8, 36, 0, 24, 8, -18, 10)
+material = SubResource("ShaderMaterial_glow")
+color = Color(0.4, 0.6, 1, 0.5)
+polygon = PackedVector2Array(-18, 0, -10, -12, 13, -10, 20, 0, 13, 10, -10, 12)
 
 [node name="Core" type="Polygon2D" parent="."]
-material = SubResource("ShaderMaterial_bolt")
-color = Color(0.67, 0.87, 1, 1)
-polygon = PackedVector2Array(-25, 0, -15, -7, 20, -5, 30, 0, 20, 5, -15, 7)
+material = SubResource("ShaderMaterial_core")
+color = Color(0.75, 0.9, 1, 1)
+polygon = PackedVector2Array(-12, 0, -8, -7, 10, -5, 15, 0, 10, 5, -8, 7)
 
 [node name="CenterLine" type="Line2D" parent="."]
-points = PackedVector2Array(-15, 0, 15, 0)
-width = 2.0
-default_color = Color(1, 1, 1, 0.9)
+points = PackedVector2Array(-10, 0, 12, 0)
+width = 1.5
+default_color = Color(1, 1, 1, 0.95)
 
 [node name="Light" type="PointLight2D" parent="."]
 color = Color(0.55, 0.75, 1, 1)

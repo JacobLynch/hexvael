@@ -14,6 +14,8 @@ var _dev_mode: bool = false
 var _auto_fire: bool = false
 var _auto_fire_timer: float = 0.0
 const AUTO_FIRE_INTERVAL: float = 0.3
+const TIME_SCALES: Array[float] = [1.0, 0.5, 0.25, 0.125]
+var _time_scale_index: int = 0
 
 
 func _ready():
@@ -71,7 +73,7 @@ func _ready():
 			port = int(args[i + 1])
 		if args[i] == "--dev":
 			_dev_mode = true
-			print("Dev mode enabled — F2 toggles auto-fire")
+			print("Dev mode enabled — F2 toggles auto-fire, F3 cycles game speed")
 	if not address.is_empty():
 		if port <= 0:
 			port = 9050
@@ -168,6 +170,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			print("Auto-fire ON")
 		else:
 			print("Auto-fire OFF")
+	if event is InputEventKey and event.pressed and event.keycode == KEY_F3:
+		_time_scale_index = (_time_scale_index + 1) % TIME_SCALES.size()
+		Engine.time_scale = TIME_SCALES[_time_scale_index]
+		print("Game speed: %sx" % TIME_SCALES[_time_scale_index])
 
 
 func _on_player_joined(player_id: int, spawn_position: Vector2):
