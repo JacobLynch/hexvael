@@ -142,6 +142,18 @@ func _process(delta: float):
 		_update_enemy_proxies()
 
 
+func _unhandled_input(event: InputEvent) -> void:
+	if not _dev_mode:
+		return
+	if event is InputEventKey and event.pressed and event.keycode == KEY_F2:
+		_auto_fire = not _auto_fire
+		if _auto_fire:
+			_auto_fire_timer = 0.0  # Fire immediately on enable
+			print("Auto-fire ON")
+		else:
+			print("Auto-fire OFF")
+
+
 func _on_player_joined(player_id: int, spawn_position: Vector2):
 	_add_remote_proxy(player_id, spawn_position)
 
