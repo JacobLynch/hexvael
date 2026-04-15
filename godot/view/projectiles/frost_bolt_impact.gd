@@ -4,6 +4,10 @@ extends Node2D
 
 const DURATION: float = 0.6
 const FRAGMENT_COUNT: int = 10
+const CRACK_LINE_COUNT: int = 5
+const CRACK_LINE_MIN_LENGTH: float = 20.0
+const CRACK_LINE_MAX_LENGTH: float = 40.0
+const CRACK_LINE_FADE_TIME: float = 0.15
 
 @onready var flash: Polygon2D = $Flash
 @onready var light: PointLight2D = $Light
@@ -13,6 +17,7 @@ var _fragments: Array[Node2D] = []
 
 func _ready() -> void:
 	_spawn_fragments()
+	_spawn_crack_lines()
 	_animate()
 
 
@@ -41,6 +46,25 @@ func _create_fragment() -> Polygon2D:
 	])
 	frag.color = Color(0.8, 0.95, 1.0, 1.0)  # Brighter
 	return frag
+
+
+func _spawn_crack_lines() -> void:
+	for i in CRACK_LINE_COUNT:
+		var line := Line2D.new()
+		var angle: float = (float(i) / CRACK_LINE_COUNT) * TAU + randf() * 0.5
+		var length: float = CRACK_LINE_MIN_LENGTH + randf() * (CRACK_LINE_MAX_LENGTH - CRACK_LINE_MIN_LENGTH)
+		var end_point: Vector2 = Vector2.from_angle(angle) * length
+
+		line.points = PackedVector2Array([Vector2.ZERO, end_point])
+		line.width = 1.5
+		line.default_color = Color(1.0, 1.0, 1.0, 0.9)
+		line.begin_cap_mode = Line2D.LINE_CAP_ROUND
+		line.end_cap_mode = Line2D.LINE_CAP_ROUND
+		add_child(line)
+
+		# Fade out
+		var tween := create_tween()
+		tween.tween_property(line, "modulate:a", 0.0, CRACK_LINE_FADE_TIME)
 
 
 func _animate() -> void:
