@@ -13,3 +13,5 @@ fire_cooldown = 0.25
 impact_force = 0.0
 movement_type = 0
 visual_scene = "res://view/projectiles/frost_bolt_visual.tscn"
+knockback_force = 200.0
+knockback_stagger = 0.1
