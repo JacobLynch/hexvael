@@ -129,7 +129,7 @@ func _on_projectile_despawned(event: Dictionary) -> void:
 		if reason == ProjectileEntity.DespawnReason.ENEMY:
 			var target_id: int = event.get("target_entity_id", -1)
 			if target_id >= 0:
-				_flash_enemy(target_id, params.enemy_flash_color, params.enemy_flash_duration)
+				_flash_enemy(target_id, params.enemy_flash_color, params.enemy_flash_duration, params.enemy_cling_scene)
 
 	elif reason == ProjectileEntity.DespawnReason.LIFETIME and params.expire_scene != null:
 		var expire = params.expire_scene.instantiate()
@@ -137,11 +137,12 @@ func _on_projectile_despawned(event: Dictionary) -> void:
 		add_child(expire)
 
 
-func _flash_enemy(entity_id: int, color: Color, duration: float) -> void:
+func _flash_enemy(entity_id: int, color: Color, duration: float, cling_scene: PackedScene = null) -> void:
 	EventBus.enemy_hit.emit({
 		"entity_id": entity_id,
 		"flash_color": color,
 		"flash_duration": duration,
+		"cling_scene": cling_scene,
 	})
 
 

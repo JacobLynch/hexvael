@@ -237,13 +237,21 @@ func _on_enemy_hit(event: Dictionary) -> void:
 	var entity_id: int = event.get("entity_id", -1)
 	var flash_color: Color = event.get("flash_color", Color.WHITE)
 	var flash_duration: float = event.get("flash_duration", 0.1)
+	var cling_scene: PackedScene = event.get("cling_scene", null)
 
 	if entity_id < 0:
 		return
 
 	var enemy_view = _enemy_views.get(entity_id)
-	if enemy_view != null and enemy_view.has_method("flash_hit"):
-		enemy_view.flash_hit(flash_color, flash_duration)
+	if enemy_view != null:
+		if enemy_view.has_method("flash_hit"):
+			enemy_view.flash_hit(flash_color, flash_duration)
+		# Spawn cling effect attached to enemy
+		if cling_scene != null:
+			var cling = cling_scene.instantiate()
+			cling.target_node = enemy_view
+			cling.global_position = enemy_view.global_position
+			add_child(cling)
 
 
 func _exit_tree():

@@ -23,3 +23,6 @@ extends Resource
 
 ## Duration of enemy flash in seconds.
 @export var enemy_flash_duration: float = 0.1
+
+## Scene to spawn attached to enemy on hit (e.g., frost crystals). Null = none.
+@export var enemy_cling_scene: PackedScene = null
