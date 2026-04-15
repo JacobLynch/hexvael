@@ -31,6 +31,16 @@ func initialize(id: int, spawn_position: Vector2, params: EnemyParams) -> void:
 
 
 func advance(dt: float, players: Array, neighbors: Array) -> void:
+	# Handle knockback stagger first — skip normal AI while staggered
+	if stagger_timer > 0.0:
+		position += knockback_velocity * dt
+		knockback_velocity *= exp(-KNOCKBACK_FRICTION * dt)
+		stagger_timer -= dt
+		if stagger_timer <= 0.0:
+			knockback_velocity = Vector2.ZERO
+			stagger_timer = 0.0
+		return
+
 	match state:
 		State.SPAWNING:
 			_advance_spawning(dt)
