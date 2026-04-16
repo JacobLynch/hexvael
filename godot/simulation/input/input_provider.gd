@@ -24,3 +24,8 @@ func consume_dodge_press() -> bool:
 ## to guarantee exactly one fire input per real button press.
 func consume_fire_press() -> bool:
 	return false
+
+## Returns true if the fire button is currently held down.
+## Used for hold-to-fire automatic firing.
+func is_fire_held() -> bool:
+	return false
