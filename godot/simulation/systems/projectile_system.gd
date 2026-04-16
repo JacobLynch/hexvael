@@ -221,6 +221,12 @@ func can_fire(player_id: int) -> bool:
 	return _fire_cooldown.get(player_id, 0.0) <= 0.0
 
 
+func can_player_fire(player: PlayerEntity) -> bool:
+	if player.state == PlayerMovementState.GHOST:
+		return false
+	return can_fire(player.player_id)
+
+
 func start_cooldown(player_id: int, type_id: int = ProjectileType.Id.TEST) -> void:
 	var params := ProjectileType.get_params(type_id)
 	_fire_cooldown[player_id] = params.fire_cooldown
