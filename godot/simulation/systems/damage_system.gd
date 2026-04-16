@@ -5,8 +5,10 @@ extends RefCounted
 func apply_damage(target, amount: int, source_info: Dictionary) -> Dictionary:
 	var result = target.health.take_damage(amount)
 
+	var entity_id = _get_entity_id(target)
 	var event_data = {
-		"target_entity_id": _get_entity_id(target),
+		"entity_id": entity_id,  # Primary key for consumers
+		"target_entity_id": entity_id,  # Alias for consistency with hit events
 		"source_entity_id": source_info.get("source_entity_id", -1),
 		"damage": result.damage_dealt,
 		"position": target.position,

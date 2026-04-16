@@ -57,4 +57,7 @@ func advance_all(dt: float, players: Dictionary) -> void:
 
 	# Remove dead enemies
 	for eid in _dead_queue:
+		var enemy = _enemies.get(eid)
+		if enemy != null:
+			enemy.queue_free()
 		_enemies.erase(eid)

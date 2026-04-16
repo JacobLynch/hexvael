@@ -99,9 +99,12 @@ func advance(dt: float, walls: Array, players: Array, enemies: Array) -> int:
 			last_hit_entity_id = enemy.entity_id
 			return DespawnReason.ENEMY
 
-	# 7. Players (owner excluded during spawn grace). Same circle-vs-AABB
-	# rationale as enemies.
+	# 7. Players (owner excluded during spawn grace, ghost players immune).
+	# Same circle-vs-AABB rationale as enemies.
 	for player in players:
+		# Ghost players cannot be hit
+		if player.state == PlayerMovementState.GHOST:
+			continue
 		var is_owner: bool = (player.player_id == owner_player_id)
 		if is_owner and spawn_grace_remaining > 0.0:
 			continue
