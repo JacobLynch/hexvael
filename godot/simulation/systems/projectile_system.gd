@@ -131,6 +131,11 @@ func advance(dt: float, players: Array, enemies: Array) -> Array:
 	var despawned: Array = []
 	var rejection_timeout_s: float = 2.0 * (_current_rtt_ms / 1000.0) + 0.1
 
+	# Build enemy lookup for knockback application
+	var enemy_lookup: Dictionary = {}
+	for enemy in enemies:
+		enemy_lookup[enemy.entity_id] = enemy
+
 	for id in projectiles.keys():
 		var p: ProjectileEntity = projectiles[id]
 		var reason: int = p.advance(dt, _walls, players, enemies)
@@ -143,6 +148,16 @@ func advance(dt: float, players: Array, enemies: Array) -> Array:
 				reason = ProjectileEntity.DespawnReason.REJECTED
 
 		if reason != ProjectileEntity.DespawnReason.ALIVE:
+			# Apply knockback on enemy hit
+			if reason == ProjectileEntity.DespawnReason.ENEMY:
+				var enemy: EnemyEntity = enemy_lookup.get(p.last_hit_entity_id)
+				if enemy != null and p.params.knockback_force > 0.0:
+					enemy.apply_knockback(
+						p.direction,
+						p.params.knockback_force,
+						p.params.knockback_stagger
+					)
+
 			despawned.append({
 				"id": id,
 				"reason": reason,

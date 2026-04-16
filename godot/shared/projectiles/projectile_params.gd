@@ -14,3 +14,8 @@ extends Resource
 
 ## Optional: path to visual scene to instantiate (empty = default polygon)
 @export var visual_scene: String = ""
+
+## Knockback force applied to enemies on hit. 0 = no knockback.
+@export var knockback_force: float = 0.0
+## Stagger duration in seconds. Enemy pauses AI during this time.
+@export var knockback_stagger: float = 0.0
