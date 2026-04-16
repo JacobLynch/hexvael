@@ -17,12 +17,14 @@ var _params: EnemyParams = null
 var knockback_velocity: Vector2 = Vector2.ZERO
 var stagger_timer: float = 0.0
 var _cached_collision_radius: float = -1.0
+var health: HealthComponent = null
 
 
 func initialize(id: int, spawn_position: Vector2, params: EnemyParams) -> void:
 	entity_id = id
 	position = spawn_position
 	_params = params
+	health = HealthComponent.new(params.max_health)
 	actual_speed = params.base_speed * (1.0 + RNG.next_float_range(
 		-params.speed_variation, params.speed_variation))
 	spawn_timer = params.base_spawn_duration * (1.0 + RNG.next_float_range(
@@ -247,6 +249,8 @@ func to_snapshot_data() -> Dictionary:
 		"state": state,
 		"facing": facing,
 		"spawn_timer": spawn_timer,
+		"health": health.current if health != null else 0,
+		"max_health": health.max_health if health != null else 0,
 	}
 
 

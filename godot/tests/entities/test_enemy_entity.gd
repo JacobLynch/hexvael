@@ -81,3 +81,25 @@ func test_kill_sets_dead():
 	var enemy = _make_enemy()
 	enemy.kill()
 	assert_eq(enemy.state, EnemyEntity.State.DEAD)
+
+
+func test_initialize_creates_health():
+	var enemy = EnemyEntityScene.instantiate()
+	add_child_autofree(enemy)
+	var params = EnemyParams.new()
+	params.max_health = 75
+	enemy.initialize(1, Vector2.ZERO, params)
+	assert_eq(enemy.health.current, 75)
+	assert_eq(enemy.health.max_health, 75)
+
+
+func test_snapshot_includes_health():
+	var enemy = EnemyEntityScene.instantiate()
+	add_child_autofree(enemy)
+	var params = EnemyParams.new()
+	params.max_health = 100
+	enemy.initialize(1, Vector2.ZERO, params)
+	enemy.health.take_damage(30)
+	var data = enemy.to_snapshot_data()
+	assert_eq(data["health"], 70)
+	assert_eq(data["max_health"], 100)
