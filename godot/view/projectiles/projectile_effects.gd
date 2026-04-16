@@ -92,6 +92,15 @@ func _on_projectile_spawned(event: Dictionary) -> void:
 			muzzle.direction = dir
 		add_child(muzzle)
 
+	# Spawn launch streak if configured
+	if params.launch_streak_scene != null:
+		var streak = params.launch_streak_scene.instantiate()
+		if streak.has_method("initialize"):
+			streak.initialize(pos, proj_id, _projectile_system)
+		else:
+			streak.global_position = pos
+		add_child(streak)
+
 
 func _on_projectile_despawned(event: Dictionary) -> void:
 	var proj_id: int = event["projectile_id"]
