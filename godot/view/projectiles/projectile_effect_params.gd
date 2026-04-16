@@ -26,3 +26,12 @@ extends Resource
 
 ## Scene to spawn attached to enemy on hit (e.g., frost crystals). Null = none.
 @export var enemy_cling_scene: PackedScene = null
+
+## Camera kick amplitude on fire. 0 = no kick. Local player only.
+@export var camera_kick_amplitude: float = 0.0
+
+## Sprite recoil distance in pixels. 0 = no recoil.
+@export var sprite_recoil_distance: float = 0.0
+
+## Scene for launch streak effect. Null = no streak.
+@export var launch_streak_scene: PackedScene = null
