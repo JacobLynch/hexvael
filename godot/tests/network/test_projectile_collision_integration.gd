@@ -120,66 +120,34 @@ func test_projectile_destroyed_on_wall_hit():
 
 
 # ---------------------------------------------------------------------------
-# Test 2 — owner self-collision fires after spawn grace expires
+# Test 2 — owner never collides with own projectile (pass-through)
 # ---------------------------------------------------------------------------
 
-func test_projectile_self_collision_after_grace():
-	## Server-side: spawn projectile aimed right; advance past grace period
-	## (0.10 s = 3 ticks at 30 Hz) without the owner in the collision list.
-	## Then teleport the owner into the projectile's path and pump one more tick.
-	## The despawn reason must be SELF and the client must remove the projectile.
+func test_projectile_passes_through_owner():
+	## Own projectiles never damage or despawn on the shooter — the player can
+	## dash ahead of a slow projectile and it keeps flying. Projectile despawns
+	## only on lifetime expiration.
 
-	# Server projectile system, no walls.
 	var srv_ps := _make_server_ps()
 
-	# Spawn authoritative projectile: origin (1200, 800) aimed right.
 	var origin := Vector2(1200.0, 800.0)
 	var srv_proj := srv_ps.spawn_authoritative(
 		PLAYER_ID, ProjectileType.Id.TEST, origin, Vector2.RIGHT, 2)
 	var proj_id: int = srv_proj.projectile_id
 
-	# Client holds an authoritative copy.
-	var cli_ps  := _make_client_ps_with_proj(proj_id, origin, Vector2.RIGHT)
-	var client  := _make_client(cli_ps)
-	assert_true(cli_ps.projectiles.has(proj_id),
-		"client must hold the projectile before self-hit")
-
-	# Pump 4 ticks WITHOUT the owner present so grace expires but no collision.
-	# spawn_grace = 0.10s.  At 30 Hz, tick_dt = 1/30 ≈ 0.03333.  Three ticks of
-	# 1/30 sum to 0.09999... (float) — still > 0.  Four ticks is -0.0333 — safely
-	# negative, grace expired.  After 4 ticks: x = 1200 + 600*(4/30) = 1280.
-	for _i in range(4):
-		var d := srv_ps.advance(TICK_DT, [], [])
-		assert_eq(d.size(), 0, "no despawn expected while pumping grace period")
-
-	# Confirm projectile exists and grace has expired.
-	assert_true(srv_ps.projectiles.has(proj_id),
-		"projectile must still be alive after grace ticks")
-	var proj: ProjectileEntity = srv_ps.projectiles[proj_id]
-	assert_true(proj.spawn_grace_remaining < 0.01,
-		"spawn_grace_remaining must be expired after 4 ticks (got %.6f)" % proj.spawn_grace_remaining)
-
-	# Spin up an owner player entity and place it 10 px ahead of the projectile.
-	# On the next tick, the projectile advances 20 px (600 px/s / 30 Hz); player
-	# is 10 px ahead of the current position, so after motion the distance = 10 px
-	# < combined radius (6+6=12 px) -> SELF collision.
+	# Park the owner directly in front of the projectile from tick 1.
 	var player: PlayerEntity = PlayerEntityScene.instantiate()
 	add_child_autofree(player)
 	player.player_id = PLAYER_ID
-	player.position = proj.position + Vector2(10.0, 0.0)
+	player.position = origin + Vector2(10.0, 0.0)
 
-	# Pump one more tick WITH the owner in the collision list.
-	var despawn := _pump_until_despawn(srv_ps, [player], 5)
-	assert_false(despawn.is_empty(),
-		"server must despawn projectile on self-collision within 5 ticks")
-	assert_eq(despawn["reason"], ProjectileEntity.DespawnReason.SELF,
-		"despawn reason must be SELF")
-	assert_eq(despawn["id"], proj_id,
-		"despawn must reference the correct projectile id")
-
-	# Deliver despawn to client.
-	_deliver_despawn(client, despawn)
-
-	# Client must have removed the projectile.
-	assert_false(cli_ps.projectiles.has(proj_id),
-		"client must remove projectile after receiving PROJECTILE_DESPAWNED(SELF)")
+	# Pump ticks with owner in the collision list; projectile must NOT despawn
+	# for owner-collision reasons. Only lifetime or exceeding travel should end it.
+	for _i in range(10):
+		var d := srv_ps.advance(TICK_DT, [player], [])
+		for entry in d:
+			assert_ne(entry["reason"], ProjectileEntity.DespawnReason.PLAYER,
+				"owner must never produce a PLAYER despawn against their own projectile")
+			# Any despawn here would have to be LIFETIME (unreachable in 10 ticks).
+	assert_true(srv_ps.projectiles.has(proj_id),
+		"projectile must survive — owner pass-through, no walls, lifetime not reached")

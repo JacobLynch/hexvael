@@ -137,7 +137,6 @@ func _on_projectile_despawned(event: Dictionary) -> void:
 		ProjectileEntity.DespawnReason.WALL,
 		ProjectileEntity.DespawnReason.ENEMY,
 		ProjectileEntity.DespawnReason.PLAYER,
-		ProjectileEntity.DespawnReason.SELF,
 	]
 
 	if is_collision and params.impact_scene != null:

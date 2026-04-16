@@ -166,7 +166,7 @@ func _handle_binary_message(bytes: PackedByteArray):
 			_apply_delta_snapshot(msg)
 		MessageTypes.Binary.ENEMY_DIED:
 			var event = {
-				"entity_id": msg["entity_id"],
+				"target_entity_id": msg["target_entity_id"],
 				"position": msg["position"],
 				"killer_id": msg["killer_id"],
 			}
@@ -174,21 +174,27 @@ func _handle_binary_message(bytes: PackedByteArray):
 			enemy_died_received.emit(event)
 		MessageTypes.Binary.ENEMY_HIT:
 			EventBus.enemy_hit.emit({
-				"entity_id": msg["entity_id"],
-				"target_entity_id": msg["entity_id"],
+				"target_entity_id": msg["target_entity_id"],
 				"position": msg["position"],
 				"damage": msg["damage"],
 				"remaining_health": msg["remaining_health"],
 				"max_health": msg["max_health"],
+				"source_entity_id": msg["source_entity_id"],
+				"element": msg["element"],
+				"chain_depth": msg["chain_depth"],
+				"projectile_id": msg["projectile_id"],
 			})
 		MessageTypes.Binary.PLAYER_HIT:
 			EventBus.player_hit.emit({
-				"entity_id": msg["entity_id"],
-				"target_entity_id": msg["entity_id"],
+				"target_entity_id": msg["target_entity_id"],
 				"position": msg["position"],
 				"damage": msg["damage"],
 				"remaining_health": msg["remaining_health"],
 				"max_health": msg["max_health"],
+				"source_entity_id": msg["source_entity_id"],
+				"element": msg["element"],
+				"chain_depth": msg["chain_depth"],
+				"projectile_id": msg["projectile_id"],
 			})
 		MessageTypes.Binary.PROJECTILE_SPAWNED:
 			_handle_projectile_spawned(bytes)
@@ -361,8 +367,15 @@ func _reconcile_local_player(snap: Snapshot):
 	# Update RTT estimate from the round-trip of this input_seq.
 	if _input_send_times.has(server_seq):
 		var sample_ms: int = Time.get_ticks_msec() - _input_send_times[server_seq]
-		# Simple running average over recent acks — keeps computation O(1) per tick.
-		_rtt_ms = (_rtt_ms * 7 + sample_ms) / 8
+		if _rtt_ms == 0:
+			# Seed directly on first sample; averaging with zero would undershoot
+			# for many ticks and cause projectile_system's rejection_timeout_s
+			# (which scales with rtt) to reject valid predictions before their
+			# authoritative spawn event has had time to round-trip back.
+			_rtt_ms = sample_ms
+		else:
+			# Simple running average over recent acks — keeps computation O(1) per tick.
+			_rtt_ms = (_rtt_ms * 7 + sample_ms) / 8
 		_input_send_times.erase(server_seq)
 
 	# Capture what the view was showing before reconciliation
@@ -388,7 +401,7 @@ func _reconcile_local_player(snap: Snapshot):
 	# old_state vs new_state here, since prediction can desync them)
 	if new_state == PlayerMovementState.GHOST:
 		# Always sync ghost_timer from server during ghost state
-		_local_player.ghost_timer = server_data.get("ghost_timer", PlayerEntity.GHOST_DURATION)
+		_local_player.ghost_timer = server_data.get("ghost_timer", _local_player.player_params.ghost_duration)
 		if old_state != PlayerMovementState.GHOST:
 			# Entering ghost state - sync health and collision
 			_local_player.health.current = 0

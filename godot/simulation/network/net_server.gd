@@ -486,9 +486,9 @@ func _server_tick():
 	for death_event in _death_events:
 		var death_msg = NetMessage.encode({
 			"type": MessageTypes.Binary.ENEMY_DIED,
-			"entity_id": death_event["entity_id"],
+			"target_entity_id": death_event["target_entity_id"],
 			"position": death_event["position"],
-			"killer_id": death_event.get("killer_id", 0),
+			"killer_id": death_event.get("source_entity_id", 0),
 		})
 		for peer_id in _peers:
 			var ws: WebSocketPeer = _peers[peer_id]
@@ -496,30 +496,20 @@ func _server_tick():
 				ws.send(death_msg)
 	_death_events.clear()
 
-	# Send queued enemy hit events
+	# Send queued enemy hit events (full payload — hit events carry every field
+	# the DamageSystem emits so element/source/chain_depth reach remote clients
+	# intact for TCE triggers.)
 	for hit_event in _hit_events:
-		var hit_msg = NetMessage.encode_enemy_hit({
-			"entity_id": hit_event["entity_id"],
-			"position": hit_event["position"],
-			"damage": hit_event.get("damage", 0),
-			"remaining_health": hit_event.get("remaining_health", 0),
-			"max_health": hit_event.get("max_health", 100),
-		})
+		var hit_msg = NetMessage.encode_enemy_hit(hit_event)
 		for peer_id in _peers:
 			var ws: WebSocketPeer = _peers[peer_id]
 			if ws.get_ready_state() == WebSocketPeer.STATE_OPEN:
 				ws.send(hit_msg)
 	_hit_events.clear()
 
-	# Send queued player hit events
+	# Send queued player hit events (full payload — see enemy hit comment)
 	for hit_event in _player_hit_events:
-		var hit_msg = NetMessage.encode_player_hit({
-			"entity_id": hit_event["entity_id"],
-			"position": hit_event["position"],
-			"damage": hit_event.get("damage", 0),
-			"remaining_health": hit_event.get("remaining_health", 0),
-			"max_health": hit_event.get("max_health", 100),
-		})
+		var hit_msg = NetMessage.encode_player_hit(hit_event)
 		for peer_id in _peers:
 			var ws: WebSocketPeer = _peers[peer_id]
 			if ws.get_ready_state() == WebSocketPeer.STATE_OPEN:

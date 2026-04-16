@@ -6,6 +6,7 @@ var last_processed_input_seq: int = 0
 
 # Movement state
 var params: MovementParams = preload("res://shared/movement/default_movement_params.tres")
+var player_params: PlayerParams = preload("res://shared/player/default_player_params.tres")
 var move_input: Vector2 = Vector2.ZERO       # latest WASD direction (raw, not normalized)
 var aim_direction: Vector2 = Vector2.RIGHT   # latest aim unit vector (used later)
 var state: int = PlayerMovementState.WALKING
@@ -16,12 +17,10 @@ var dodge_time_remaining: float = 0.0
 var dodge_cooldown_remaining: float = 0.0
 
 # Health
-const PLAYER_MAX_HEALTH: int = 100
 var health: HealthComponent = null
 
 # Ghost state
 var ghost_timer: float = 0.0
-const GHOST_DURATION: float = 5.0
 
 # Collision tracking (for remote-player wall bump synthesis)
 # Increments on every wall collision and wraps at 256 (u8).
@@ -45,7 +44,7 @@ var _cached_collision_radius: float = -1.0
 func initialize(id: int, spawn_position: Vector2) -> void:
 	player_id = id
 	position = spawn_position
-	health = HealthComponent.new(PLAYER_MAX_HEALTH)
+	health = HealthComponent.new(player_params.max_health)
 
 
 # Ingest: called by MovementSystem when dequeuing inputs.
@@ -116,7 +115,7 @@ func start_dodge() -> void:
 
 func enter_ghost_state() -> void:
 	state = PlayerMovementState.GHOST
-	ghost_timer = GHOST_DURATION
+	ghost_timer = player_params.ghost_duration
 	velocity = Vector2.ZERO
 	dodge_time_remaining = 0.0
 	$CollisionShape2D.set_deferred("disabled", true)
@@ -124,7 +123,7 @@ func enter_ghost_state() -> void:
 		EventBus.player_ghost_started.emit({
 			"entity_id": player_id,
 			"position": position,
-			"duration": GHOST_DURATION,
+			"duration": player_params.ghost_duration,
 		})
 
 
@@ -287,7 +286,7 @@ func to_snapshot_data() -> Dictionary:
 		"dodge_time_remaining": dodge_time_remaining,
 		"collision_count": collision_count,
 		"last_collision_normal": last_collision_normal,
-		"health": health.current if health != null else PLAYER_MAX_HEALTH,
-		"max_health": health.max_health if health != null else PLAYER_MAX_HEALTH,
+		"health": health.current if health != null else player_params.max_health,
+		"max_health": health.max_health if health != null else player_params.max_health,
 		"ghost_timer": ghost_timer,
 	}

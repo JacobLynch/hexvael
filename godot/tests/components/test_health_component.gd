@@ -47,6 +47,24 @@ func test_is_dead():
 	health.take_damage(50)
 	assert_true(health.is_dead())
 
+func test_take_damage_ignores_negative():
+	# Negative amounts must never heal. Trust-boundary guard: any future AoE
+	# or TCE trigger could accidentally pass a signed delta; silently healing
+	# the target would be a subtle exploit and mask logic bugs.
+	var health = HealthComponentCls.new(100)
+	health.take_damage(40)  # 60 remaining
+	var result = health.take_damage(-50)
+	assert_eq(health.current, 60, "Negative damage must not change current")
+	assert_eq(result["damage_dealt"], 0)
+	assert_false(result["killed"])
+
+func test_take_damage_zero():
+	var health = HealthComponentCls.new(100)
+	var result = health.take_damage(0)
+	assert_eq(health.current, 100)
+	assert_eq(result["damage_dealt"], 0)
+	assert_false(result["killed"])
+
 func test_to_dict():
 	var health = HealthComponentCls.new(100)
 	health.take_damage(25)

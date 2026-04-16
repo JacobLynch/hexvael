@@ -218,17 +218,17 @@ static func _decode_snapshot(bytes: PackedByteArray, type: int) -> Variant:
 
 
 # --- Private: Enemy Died ---
-# Format: [type: u8][entity_id: u16][x: f32][y: f32][killer_id: u16]
+# Format: [type: u8][target_entity_id: u16][x: f32][y: f32][killer_id: u16]
 
 static func _encode_enemy_died(msg: Dictionary) -> PackedByteArray:
 	var buf = PackedByteArray()
 	buf.resize(MessageTypes.Layout.ENEMY_DIED_SIZE)
 	var pos: Vector2 = msg["position"]
 	buf.encode_u8(0, MessageTypes.Binary.ENEMY_DIED)
-	buf.encode_u16(1, msg["entity_id"])
+	buf.encode_u16(1, msg["target_entity_id"])
 	buf.encode_float(3, pos.x)
 	buf.encode_float(7, pos.y)
-	buf.encode_u16(11, msg["killer_id"])
+	buf.encode_u16(11, msg.get("killer_id", 0))
 	return buf
 
 
@@ -237,7 +237,7 @@ static func _decode_enemy_died(bytes: PackedByteArray) -> Variant:
 		return null
 	return {
 		"type": MessageTypes.Binary.ENEMY_DIED,
-		"entity_id": bytes.decode_u16(1),
+		"target_entity_id": bytes.decode_u16(1),
 		"position": Vector2(bytes.decode_float(3), bytes.decode_float(7)),
 		"killer_id": bytes.decode_u16(11),
 	}
@@ -355,19 +355,25 @@ static func decode_enemy_hit(bytes: PackedByteArray) -> Dictionary:
 
 
 # --- Private: Enemy Hit ---
-# Format: [type:u8][entity_id:u16][x:f32][y:f32][damage:u16][remaining_health:u16][max_health:u16]
+# Format: [type:u8][target_entity_id:u16][x:f32][y:f32][damage:u16]
+#         [remaining_health:u16][max_health:u16][source_entity_id:s16]
+#         [element:u8][chain_depth:u8][projectile_id:s16]
 
 static func _encode_enemy_hit(event: Dictionary) -> PackedByteArray:
 	var buf = PackedByteArray()
 	buf.resize(MessageTypes.Layout.ENEMY_HIT_SIZE)
 	var pos: Vector2 = event["position"]
 	buf.encode_u8(0, MessageTypes.Binary.ENEMY_HIT)
-	buf.encode_u16(1, event["entity_id"])
+	buf.encode_u16(1, event["target_entity_id"])
 	buf.encode_float(3, pos.x)
 	buf.encode_float(7, pos.y)
 	buf.encode_u16(11, event.get("damage", 0))
 	buf.encode_u16(13, event.get("remaining_health", 0))
 	buf.encode_u16(15, event.get("max_health", 100))
+	buf.encode_s16(17, event.get("source_entity_id", -1))
+	buf.encode_u8(19, MessageTypes.element_to_id(event.get("element", "physical")))
+	buf.encode_u8(20, clampi(event.get("chain_depth", 0), 0, 255))
+	buf.encode_s16(21, event.get("projectile_id", -1))
 	return buf
 
 
@@ -376,12 +382,15 @@ static func _decode_enemy_hit(bytes: PackedByteArray) -> Variant:
 		return null
 	return {
 		"type": MessageTypes.Binary.ENEMY_HIT,
-		"entity_id": bytes.decode_u16(1),
-		"target_entity_id": bytes.decode_u16(1),  # Alias for consistency
+		"target_entity_id": bytes.decode_u16(1),
 		"position": Vector2(bytes.decode_float(3), bytes.decode_float(7)),
 		"damage": bytes.decode_u16(11),
 		"remaining_health": bytes.decode_u16(13),
 		"max_health": bytes.decode_u16(15),
+		"source_entity_id": bytes.decode_s16(17),
+		"element": MessageTypes.element_from_id(bytes.decode_u8(19)),
+		"chain_depth": bytes.decode_u8(20),
+		"projectile_id": bytes.decode_s16(21),
 	}
 
 
@@ -399,19 +408,23 @@ static func decode_player_hit(bytes: PackedByteArray) -> Dictionary:
 
 
 # --- Private: Player Hit ---
-# Format: [type:u8][entity_id:u16][x:f32][y:f32][damage:u16][remaining_health:u16][max_health:u16]
+# Same layout as enemy hit.
 
 static func _encode_player_hit(event: Dictionary) -> PackedByteArray:
 	var buf = PackedByteArray()
 	buf.resize(MessageTypes.Layout.PLAYER_HIT_SIZE)
 	var pos: Vector2 = event["position"]
 	buf.encode_u8(0, MessageTypes.Binary.PLAYER_HIT)
-	buf.encode_u16(1, event["entity_id"])
+	buf.encode_u16(1, event["target_entity_id"])
 	buf.encode_float(3, pos.x)
 	buf.encode_float(7, pos.y)
 	buf.encode_u16(11, event.get("damage", 0))
 	buf.encode_u16(13, event.get("remaining_health", 0))
 	buf.encode_u16(15, event.get("max_health", 100))
+	buf.encode_s16(17, event.get("source_entity_id", -1))
+	buf.encode_u8(19, MessageTypes.element_to_id(event.get("element", "physical")))
+	buf.encode_u8(20, clampi(event.get("chain_depth", 0), 0, 255))
+	buf.encode_s16(21, event.get("projectile_id", -1))
 	return buf
 
 
@@ -420,10 +433,13 @@ static func _decode_player_hit(bytes: PackedByteArray) -> Variant:
 		return null
 	return {
 		"type": MessageTypes.Binary.PLAYER_HIT,
-		"entity_id": bytes.decode_u16(1),
-		"target_entity_id": bytes.decode_u16(1),  # Alias for consistency
+		"target_entity_id": bytes.decode_u16(1),
 		"position": Vector2(bytes.decode_float(3), bytes.decode_float(7)),
 		"damage": bytes.decode_u16(11),
 		"remaining_health": bytes.decode_u16(13),
 		"max_health": bytes.decode_u16(15),
+		"source_entity_id": bytes.decode_s16(17),
+		"element": MessageTypes.element_from_id(bytes.decode_u8(19)),
+		"chain_depth": bytes.decode_u8(20),
+		"projectile_id": bytes.decode_s16(21),
 	}

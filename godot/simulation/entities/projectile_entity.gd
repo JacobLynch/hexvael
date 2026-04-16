@@ -7,7 +7,7 @@ enum DespawnReason {
 	WALL     = 1,
 	ENEMY    = 2,
 	PLAYER   = 3,
-	SELF     = 4,
+	# 4 reserved (was SELF — owner-hit; projectiles now always pass through owner)
 	REJECTED = 5,  # client-only, never broadcast
 }
 
@@ -99,19 +99,18 @@ func advance(dt: float, walls: Array, players: Array, enemies: Array) -> int:
 			last_hit_entity_id = enemy.entity_id
 			return DespawnReason.ENEMY
 
-	# 7. Players (owner excluded during spawn grace, ghost players immune).
-	# Same circle-vs-AABB rationale as enemies.
+	# 7. Players (owner always passes through, ghost players immune).
+	# Top-down ARPG convention: your own projectiles never hit you, regardless
+	# of movement — preserves the mental model "my bullets don't affect me"
+	# even when the player dashes ahead of a slow projectile.
 	for player in players:
-		# Ghost players cannot be hit
 		if player.state == PlayerMovementState.GHOST:
 			continue
-		var is_owner: bool = (player.player_id == owner_player_id)
-		if is_owner and spawn_grace_remaining > 0.0:
+		if player.player_id == owner_player_id:
 			continue
 		if CollisionMath.circle_aabb_overlap(
 				position, params.radius, player.get_collision_rect()):
 			last_hit_entity_id = player.player_id
-			return (DespawnReason.SELF
-					if is_owner else DespawnReason.PLAYER)
+			return DespawnReason.PLAYER
 
 	return DespawnReason.ALIVE

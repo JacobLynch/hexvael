@@ -23,7 +23,7 @@ func _on_enemy_spawned(event: Dictionary) -> void:
 
 
 func _on_enemy_hit(event: Dictionary) -> void:
-	var entity_id: int = event.get("target_entity_id", event.get("entity_id", -1))
+	var entity_id: int = event.get("target_entity_id", -1)
 	if entity_id < 0:
 		return
 
@@ -46,7 +46,7 @@ func _on_enemy_hit(event: Dictionary) -> void:
 
 
 func _on_enemy_died(event: Dictionary) -> void:
-	var entity_id: int = event.get("target_entity_id", event.get("entity_id", -1))
+	var entity_id: int = event.get("target_entity_id", -1)
 	_remove_bar(entity_id)
 
 
