@@ -1,5 +1,17 @@
 # Devlog
 
+## 2026-04-15
+- Shooting juice for frost bolt on `feature/frost-bolt-juice-v2` branch
+- Camera kick: directional recoil opposite to shot direction with fast exponential snap-back (KICK_DECAY=20.0), local player only, triggered from spawn_local_muzzle_flash for instant feedback
+- Sprite recoil: visual nudge opposite to shot direction (2px), works for all players via EventBus projectile_spawned, RECOIL_ENABLED constant for easy toggle, purely visual (doesn't affect collision)
+- Launch streak: Line2D from spawn point tracking projectile for 80ms then fading over 100ms, frost cyan color, creates dramatic acceleration feel
+- Muzzle light bump: energy 1.5→2.5, texture_scale 0.12→0.18 for brighter flash
+- Effects parameterized per projectile type via ProjectileEffectParams (camera_kick_amplitude, sprite_recoil_distance, launch_streak_scene)
+- Wiring: client_main passes camera_rig to ProjectileEffects, registers effect params with WorldView for recoil lookup
+- FrostBoltStreak typed _projectile_system as Node to avoid circular view→simulation dependency
+- 237 GUT tests passing
+- Next session: manual testing, then consider more projectile types or TCE system
+
 ## 2026-04-12
 - Network hardening pass + projectile system refactor on `multiplayer-projectiles` branch, preparing for PR and merge
 - Wrote network hardening design spec and implementation plan docs before touching code, then worked through the list
