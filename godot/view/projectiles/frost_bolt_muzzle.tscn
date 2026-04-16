@@ -35,8 +35,8 @@ color_ramp = SubResource("GradientTexture_particles")
 
 [node name="Light" type="PointLight2D" parent="."]
 color = Color(0.6, 0.8, 1, 1)
-energy = 1.5
-texture_scale = 0.12
+energy = 2.5
+texture_scale = 0.18
 blend_mode = 1
 
 [node name="Vapor" type="CPUParticles2D" parent="."]
