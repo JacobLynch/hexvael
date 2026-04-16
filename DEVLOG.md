@@ -1,5 +1,10 @@
 # Devlog
 
+## 2026-04-15 (continued)
+- Task 1: HealthComponent — pure data class with take_damage, heal, is_dead, and snapshot serialization, no EventBus coupling
+- TDD workflow: 9 tests covering initialization, damage clamping, healing with max clamps, dead check, and dict round-trips (all passing)
+- Foundation for Task 2-15 health/damage system
+
 ## 2026-04-15
 - Shooting juice for frost bolt on `feature/frost-bolt-juice-v2` branch
 - Camera kick: directional recoil opposite to shot direction with fast exponential snap-back (KICK_DECAY=20.0), local player only, triggered from spawn_local_muzzle_flash for instant feedback
