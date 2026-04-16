@@ -10,6 +10,11 @@ var _visual: ColorRect
 var _facing_line: Line2D
 var _base_color: Color
 
+const RECOIL_ENABLED: bool = true  ## Easy toggle to disable sprite recoil
+const RECOIL_DECAY: float = 20.0
+
+var _recoil_offset: Vector2 = Vector2.ZERO
+
 
 func _ready():
 	_visual = ColorRect.new()
@@ -63,5 +68,19 @@ func update_visual_state(aim_dir: Vector2, state: int, velocity_magnitude: float
 	self.scale = self.scale.lerp(target_scale, 1.0 - exp(-10.0 * delta))
 
 
-func _process(_delta: float):
-	position = _target_position
+## Apply visual recoil nudge opposite to shot direction.
+## Called by WorldView on projectile_spawned for this player.
+func apply_recoil(direction: Vector2, distance: float) -> void:
+	if not RECOIL_ENABLED or distance <= 0.0:
+		return
+	_recoil_offset = -direction.normalized() * distance
+
+
+func _process(delta: float) -> void:
+	# Decay recoil
+	if _recoil_offset.length_squared() > 0.001:
+		_recoil_offset *= exp(-RECOIL_DECAY * delta)
+	else:
+		_recoil_offset = Vector2.ZERO
+
+	position = _target_position + _recoil_offset
