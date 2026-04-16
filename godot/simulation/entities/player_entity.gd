@@ -15,6 +15,14 @@ var dodge_direction: Vector2 = Vector2.ZERO
 var dodge_time_remaining: float = 0.0
 var dodge_cooldown_remaining: float = 0.0
 
+# Health
+const PLAYER_MAX_HEALTH: int = 100
+var health: HealthComponent = null
+
+# Ghost state
+var ghost_timer: float = 0.0
+const GHOST_DURATION: float = 5.0
+
 # Collision tracking (for remote-player wall bump synthesis)
 # Increments on every wall collision and wraps at 256 (u8).
 # Clients detect counter changes in the snapshot to fire synthetic player_collided events.
@@ -32,6 +40,7 @@ var _cached_collision_radius: float = -1.0
 func initialize(id: int, spawn_position: Vector2) -> void:
 	player_id = id
 	position = spawn_position
+	health = HealthComponent.new(PLAYER_MAX_HEALTH)
 
 
 # Ingest: called by MovementSystem when dequeuing inputs.
@@ -44,6 +53,9 @@ func apply_input(input: Dictionary) -> void:
 	var incoming_aim: Vector2 = input.get("aim_direction", aim_direction)
 	if incoming_aim.length_squared() > 0.001:
 		aim_direction = incoming_aim.normalized()
+	# Block actions during ghost state
+	if state == PlayerMovementState.GHOST:
+		return
 	var flags: int = input.get("action_flags", 0)
 	if (flags & MessageTypes.InputActionFlags.DODGE) != 0 and can_dodge():
 		start_dodge()
@@ -94,6 +106,51 @@ func start_dodge() -> void:
 		})
 
 
+func enter_ghost_state() -> void:
+	state = PlayerMovementState.GHOST
+	ghost_timer = GHOST_DURATION
+	velocity = Vector2.ZERO
+	dodge_time_remaining = 0.0
+	$CollisionShape2D.set_deferred("disabled", true)
+	if not _suppress_events:
+		EventBus.player_ghost_started.emit({
+			"entity_id": player_id,
+			"position": position,
+			"duration": GHOST_DURATION,
+		})
+
+
+func _advance_ghost(dt: float) -> void:
+	ghost_timer -= dt
+	if move_input.length_squared() > 0.001:
+		velocity = move_input.normalized() * params.top_speed
+	else:
+		velocity *= exp(-params.friction * dt)
+	position += velocity * dt  # Direct position update, no collision
+
+	if ghost_timer <= 0.0:
+		_respawn()
+
+
+func _respawn() -> void:
+	state = PlayerMovementState.WALKING
+	position = Vector2.ZERO
+	health.current = health.max_health
+	velocity = Vector2.ZERO
+	ghost_timer = 0.0
+	dodge_cooldown_remaining = 0.0
+	_ensure_collision_enabled()
+	if not _suppress_events:
+		EventBus.player_respawned.emit({
+			"entity_id": player_id,
+			"position": position,
+		})
+
+
+func _ensure_collision_enabled() -> void:
+	$CollisionShape2D.set_deferred("disabled", false)
+
+
 # Canonical movement step. Called by:
 #   - Server tick  -> advance(TICK_INTERVAL)
 #   - Client prediction (per display frame) -> advance(frame_delta)
@@ -130,6 +187,10 @@ func advance(dt: float) -> void:
 						"position": position,
 						"direction": dodge_direction,
 					})
+
+		PlayerMovementState.GHOST:
+			_advance_ghost(dt)
+			return  # Skip collision handling for ghost
 
 	# Midpoint integration: average pre- and post-step velocity for position.
 	# This ensures position is dt-independent during the accel ramp, not just at
@@ -212,4 +273,7 @@ func to_snapshot_data() -> Dictionary:
 		"dodge_time_remaining": dodge_time_remaining,
 		"collision_count": collision_count,
 		"last_collision_normal": last_collision_normal,
+		"health": health.current if health != null else PLAYER_MAX_HEALTH,
+		"max_health": health.max_health if health != null else PLAYER_MAX_HEALTH,
+		"ghost_timer": ghost_timer,
 	}
