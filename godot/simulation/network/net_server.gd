@@ -46,6 +46,7 @@ const MAX_CONNECTIONS_PER_IP_PER_MINUTE = 10
 
 var _projectile_system: ProjectileSystem
 var _player_position_history: PlayerPositionHistory
+var _damage_system: DamageSystem
 
 
 func _ready():
@@ -63,6 +64,9 @@ func _ready():
 
 	_projectile_system = ProjectileSystem.new()
 	add_child(_projectile_system)
+
+	_damage_system = DamageSystem.new()
+	_projectile_system.set_damage_system(_damage_system)
 
 	_player_position_history = PlayerPositionHistory.new()
 

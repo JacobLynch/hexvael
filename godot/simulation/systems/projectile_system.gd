@@ -8,6 +8,12 @@ var _next_server_id: int = 1
 var _walls: Array[Rect2] = []
 var _fire_cooldown: Dictionary = {}      # player_id -> seconds remaining
 var _current_rtt_ms: int = 0             # local client's RTT estimate for rejection timeout
+var _damage_system: DamageSystem = null
+
+
+func set_damage_system(damage_system: DamageSystem) -> void:
+	_damage_system = damage_system
+
 
 func set_walls(aabbs: Array[Rect2]) -> void:
 	_walls = aabbs
@@ -131,10 +137,14 @@ func advance(dt: float, players: Array, enemies: Array) -> Array:
 	var despawned: Array = []
 	var rejection_timeout_s: float = 2.0 * (_current_rtt_ms / 1000.0) + 0.1
 
-	# Build enemy lookup for knockback application
+	# Build enemy lookup for damage and knockback application
 	var enemy_lookup: Dictionary = {}
 	for enemy in enemies:
 		enemy_lookup[enemy.entity_id] = enemy
+
+	var player_lookup: Dictionary = {}
+	for player in players:
+		player_lookup[player.player_id] = player
 
 	for id in projectiles.keys():
 		var p: ProjectileEntity = projectiles[id]
@@ -148,8 +158,37 @@ func advance(dt: float, players: Array, enemies: Array) -> Array:
 				reason = ProjectileEntity.DespawnReason.REJECTED
 
 		if reason != ProjectileEntity.DespawnReason.ALIVE:
-			# Apply knockback on enemy hit
-			if reason == ProjectileEntity.DespawnReason.ENEMY:
+			# Apply damage and knockback on entity hits
+			if _damage_system != null:
+				var source_info = {
+					"source_entity_id": p.owner_player_id,
+					"projectile_id": p.projectile_id,
+					"element": p.params.element,
+				}
+
+				if reason == ProjectileEntity.DespawnReason.ENEMY:
+					var enemy: EnemyEntity = enemy_lookup.get(p.last_hit_entity_id)
+					if enemy != null:
+						_damage_system.apply_damage(enemy, p.params.damage, source_info)
+						if p.params.knockback_force > 0.0:
+							enemy.apply_knockback(
+								p.direction,
+								p.params.knockback_force,
+								p.params.knockback_stagger
+							)
+
+				elif reason == ProjectileEntity.DespawnReason.PLAYER:
+					var player = player_lookup.get(p.last_hit_entity_id)
+					if player != null:
+						_damage_system.apply_damage(player, p.params.damage, source_info)
+
+				elif reason == ProjectileEntity.DespawnReason.SELF:
+					var player = player_lookup.get(p.owner_player_id)
+					if player != null:
+						_damage_system.apply_damage(player, p.params.damage, source_info)
+
+			elif reason == ProjectileEntity.DespawnReason.ENEMY:
+				# Fallback: apply knockback without damage (client-side)
 				var enemy: EnemyEntity = enemy_lookup.get(p.last_hit_entity_id)
 				if enemy != null and p.params.knockback_force > 0.0:
 					enemy.apply_knockback(
