@@ -16,3 +16,4 @@ extends Resource
 @export var wander_radius: float = 50.0
 @export var wander_speed_factor: float = 0.3
 @export var mass: float = 1.0  ## Knockback resistance. 1.0 = light, 3.0+ = immune
+@export var max_health: int = 50  ## Maximum health. Enemy dies when health reaches 0.
