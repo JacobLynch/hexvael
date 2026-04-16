@@ -16,6 +16,7 @@ var _prev_remote_dodge_state: Dictionary = {}  # entity_id -> bool
 # momentary wall-collision events and emit synthetic player_collided signals.
 var _prev_remote_collision_count: Dictionary = {}  # entity_id -> int
 var _effect_params_cache: Dictionary = {}  ## type_id -> ProjectileEffectParams
+var _ghost_overlay = null
 
 
 func initialize(net_client: NetClient) -> void:
@@ -43,6 +44,8 @@ func initialize(net_client: NetClient) -> void:
 	var health_bar_manager = preload("res://view/ui/health_bar_manager.gd").new()
 	add_child(health_bar_manager)
 	health_bar_manager.initialize(self, _enemy_views)
+	_ghost_overlay = preload("res://view/effects/ghost_overlay.gd").new()
+	add_child(_ghost_overlay)
 	EventBus.player_dodge_started.connect(_on_any_dodge_started)
 	EventBus.enemy_hit.connect(_on_enemy_hit)
 	EventBus.projectile_spawned.connect(_on_projectile_spawned_for_recoil)
@@ -59,8 +62,10 @@ func register_effect_params(type_id: int, params: ProjectileEffectParams) -> voi
 	_effect_params_cache[type_id] = params
 
 
-func _on_connected(_player_id: int):
-	pass  # Local player view created when first snapshot arrives
+func _on_connected(player_id: int):
+	if _ghost_overlay != null:
+		_ghost_overlay.initialize(player_id, _player_views)
+	# Local player view created when first snapshot arrives
 
 
 func _on_disconnected():

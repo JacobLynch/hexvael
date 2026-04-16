@@ -76,6 +76,13 @@ func apply_recoil(direction: Vector2, distance: float) -> void:
 	_recoil_offset = -direction.normalized() * distance
 
 
+func set_ghost_visual(is_ghost: bool) -> void:
+	if is_ghost:
+		modulate = Color(0.5, 0.5, 0.8, 0.5)  # Translucent blue
+	else:
+		modulate = Color.WHITE
+
+
 func _process(delta: float) -> void:
 	# Decay recoil
 	if _recoil_offset.length_squared() > 0.001:
