@@ -15,6 +15,8 @@ var _net_client: NetClient
 var _target_position: Vector2 = Vector2.ZERO
 var _shake_amplitude: float = 0.0
 var _shake_offset: Vector2 = Vector2.ZERO
+var _kick_offset: Vector2 = Vector2.ZERO
+const KICK_DECAY: float = 20.0  ## Fast snap-back rate
 
 
 func _ready() -> void:
@@ -58,6 +60,14 @@ func add_shake(amplitude: float, _duration: float) -> void:
 	_shake_amplitude = max(_shake_amplitude, amplitude)
 
 
+## Apply directional camera kick (recoil opposite to shot direction).
+## Local player only — called from ProjectileEffects.spawn_local_muzzle_flash().
+func add_kick(direction: Vector2, amplitude: float) -> void:
+	if amplitude <= 0.0:
+		return
+	_kick_offset = -direction.normalized() * amplitude
+
+
 func _process(delta: float):
 	if _net_client == null:
 		return
@@ -91,5 +101,11 @@ func _process(delta: float):
 		_shake_offset = Vector2.ZERO
 		_shake_amplitude = 0.0
 
-	var target = _target_position + lookahead + _shake_offset
+	# Kick: directional offset, exponential decay (faster than shake)
+	if _kick_offset.length_squared() > 0.001:
+		_kick_offset *= exp(-KICK_DECAY * delta)
+	else:
+		_kick_offset = Vector2.ZERO
+
+	var target = _target_position + lookahead + _shake_offset + _kick_offset
 	position = position.lerp(target, 1.0 - exp(-follow_smoothing * delta))
