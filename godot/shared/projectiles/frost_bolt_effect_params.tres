@@ -1,10 +1,11 @@
-[gd_resource type="Resource" script_class="ProjectileEffectParams" load_steps=6 format=3 uid="uid://frost_bolt_effect_params"]
+[gd_resource type="Resource" script_class="ProjectileEffectParams" load_steps=7 format=3 uid="uid://frost_bolt_effect_params"]
 
 [ext_resource type="Script" path="res://view/projectiles/projectile_effect_params.gd" id="1_script"]
 [ext_resource type="PackedScene" path="res://view/projectiles/frost_bolt_muzzle.tscn" id="2_muzzle"]
 [ext_resource type="PackedScene" path="res://view/projectiles/frost_bolt_impact.tscn" id="3_impact"]
 [ext_resource type="PackedScene" path="res://view/projectiles/frost_bolt_shard.tscn" id="4_shard"]
 [ext_resource type="PackedScene" path="res://view/effects/frost_cling.tscn" id="5_cling"]
+[ext_resource type="PackedScene" path="res://view/effects/frost_bolt_streak.tscn" id="6_streak"]
 
 [resource]
 script = ExtResource("1_script")
@@ -16,3 +17,6 @@ trail_scene = ExtResource("4_shard")
 enemy_flash_color = Color(0.8, 0.95, 1, 1)
 enemy_flash_duration = 0.1
 enemy_cling_scene = ExtResource("5_cling")
+camera_kick_amplitude = 3.0
+sprite_recoil_distance = 2.0
+launch_streak_scene = ExtResource("6_streak")
