@@ -80,8 +80,7 @@ func _on_despawned(event: Dictionary) -> void:
 			var interp = _net_client.get_interpolated_enemy(target_id)
 			if interp != null:
 				final_pos = interp["position"]
-		elif reason == ProjectileEntity.DespawnReason.PLAYER or \
-			 reason == ProjectileEntity.DespawnReason.SELF:
+		elif reason == ProjectileEntity.DespawnReason.PLAYER:
 			var interp_pos = _net_client.get_interpolated_position(target_id)
 			if interp_pos != null:
 				final_pos = interp_pos
@@ -142,8 +141,6 @@ func _play_despawn_effect(pos: Vector2, reason: int) -> void:
 			_spawn_particle_burst(pos, Color(0.2, 1.0, 1.0), 6)
 		ProjectileEntity.DespawnReason.PLAYER:
 			_spawn_particle_burst(pos, Color(1.0, 0.3, 0.3), 6)
-		ProjectileEntity.DespawnReason.SELF:
-			_spawn_particle_burst(pos, Color(1.0, 0.2, 0.2), 6)
 		ProjectileEntity.DespawnReason.LIFETIME:
 			pass  # soft fade only
 		ProjectileEntity.DespawnReason.REJECTED:

@@ -48,3 +48,54 @@ func test_to_snapshot_data_tracks_input_seq():
 	player.last_processed_input_seq = 42
 	var data = player.to_snapshot_data()
 	assert_eq(data["last_input_seq"], 42)
+
+
+func test_initialize_creates_health():
+	var player = PlayerEntityScene.instantiate()
+	add_child_autofree(player)
+	player.initialize(1, Vector2.ZERO)
+	assert_eq(player.health.current, 100)
+	assert_eq(player.health.max_health, 100)
+
+
+func test_enter_ghost_state():
+	var player = PlayerEntityScene.instantiate()
+	add_child_autofree(player)
+	player.initialize(1, Vector2(100, 100))
+	player.enter_ghost_state()
+	assert_eq(player.state, PlayerMovementState.GHOST)
+	assert_almost_eq(player.ghost_timer, 5.0, 0.01)
+	assert_eq(player.velocity, Vector2.ZERO)
+
+
+func test_ghost_advances_and_respawns():
+	var player = PlayerEntityScene.instantiate()
+	add_child_autofree(player)
+	player.initialize(1, Vector2(100, 100))
+	player.health.take_damage(100)  # Kill player
+	player.enter_ghost_state()
+
+	player.move_input = Vector2(1, 0)
+	player.advance(1.0)
+	assert_eq(player.state, PlayerMovementState.GHOST)
+	assert_almost_eq(player.ghost_timer, 4.0, 0.01)
+
+	player.advance(4.1)
+	assert_eq(player.state, PlayerMovementState.WALKING)
+	assert_eq(player.position, MessageTypes.SPAWN_POSITION)
+	assert_eq(player.health.current, 100)
+
+
+func test_ghost_cannot_dodge():
+	var player = PlayerEntityScene.instantiate()
+	add_child_autofree(player)
+	player.initialize(1, Vector2.ZERO)
+	player.enter_ghost_state()
+
+	player.apply_input({
+		"move_direction": Vector2.RIGHT,
+		"aim_direction": Vector2.RIGHT,
+		"action_flags": MessageTypes.InputActionFlags.DODGE,
+	})
+
+	assert_eq(player.state, PlayerMovementState.GHOST)

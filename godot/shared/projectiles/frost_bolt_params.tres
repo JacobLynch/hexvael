@@ -15,3 +15,5 @@ movement_type = 0
 visual_scene = "res://view/projectiles/frost_bolt_visual.tscn"
 knockback_force = 200.0
 knockback_stagger = 0.1
+damage = 25
+element = "frost"

@@ -22,6 +22,8 @@ var _player_entities: Dictionary = {}  # player_id -> PlayerEntity
 var _enemy_system: EnemySystem
 var _enemy_spawner: EnemySpawner
 var _death_events: Array = []
+var _hit_events: Array = []
+var _player_hit_events: Array = []
 
 # Snapshot baselines: player_id -> Snapshot (last ACK'd)
 var _baselines: Dictionary = {}
@@ -46,6 +48,7 @@ const MAX_CONNECTIONS_PER_IP_PER_MINUTE = 10
 
 var _projectile_system: ProjectileSystem
 var _player_position_history: PlayerPositionHistory
+var _damage_system: DamageSystem
 
 
 func _ready():
@@ -64,6 +67,9 @@ func _ready():
 	_projectile_system = ProjectileSystem.new()
 	add_child(_projectile_system)
 
+	_damage_system = DamageSystem.new()
+	_projectile_system.set_damage_system(_damage_system)
+
 	_player_position_history = PlayerPositionHistory.new()
 
 	# Extract wall AABBs from the arena and pass them to the projectile system.
@@ -78,6 +84,8 @@ func _ready():
 		push_warning("NetServer: Arena node not found — projectiles will have no wall collisions")
 
 	EventBus.enemy_died.connect(_on_enemy_died)
+	EventBus.enemy_hit.connect(_on_enemy_hit)
+	EventBus.player_hit.connect(_on_player_hit)
 
 	var err = _tcp_server.listen(port)
 	if err == OK:
@@ -478,15 +486,35 @@ func _server_tick():
 	for death_event in _death_events:
 		var death_msg = NetMessage.encode({
 			"type": MessageTypes.Binary.ENEMY_DIED,
-			"entity_id": death_event["entity_id"],
+			"target_entity_id": death_event["target_entity_id"],
 			"position": death_event["position"],
-			"killer_id": death_event.get("killer_id", 0),
+			"killer_id": death_event.get("source_entity_id", 0),
 		})
 		for peer_id in _peers:
 			var ws: WebSocketPeer = _peers[peer_id]
 			if ws.get_ready_state() == WebSocketPeer.STATE_OPEN:
 				ws.send(death_msg)
 	_death_events.clear()
+
+	# Send queued enemy hit events (full payload — hit events carry every field
+	# the DamageSystem emits so element/source/chain_depth reach remote clients
+	# intact for TCE triggers.)
+	for hit_event in _hit_events:
+		var hit_msg = NetMessage.encode_enemy_hit(hit_event)
+		for peer_id in _peers:
+			var ws: WebSocketPeer = _peers[peer_id]
+			if ws.get_ready_state() == WebSocketPeer.STATE_OPEN:
+				ws.send(hit_msg)
+	_hit_events.clear()
+
+	# Send queued player hit events (full payload — see enemy hit comment)
+	for hit_event in _player_hit_events:
+		var hit_msg = NetMessage.encode_player_hit(hit_event)
+		for peer_id in _peers:
+			var ws: WebSocketPeer = _peers[peer_id]
+			if ws.get_ready_state() == WebSocketPeer.STATE_OPEN:
+				ws.send(hit_msg)
+	_player_hit_events.clear()
 
 	# Broadcast projectile spawn and despawn events collected during this tick.
 	# NOTE: These events are broadcast AFTER snapshots in the same tick, so
@@ -553,6 +581,14 @@ func _on_enemy_died(event: Dictionary) -> void:
 	_death_events.append(event)
 
 
+func _on_enemy_hit(event: Dictionary) -> void:
+	_hit_events.append(event)
+
+
+func _on_player_hit(event: Dictionary) -> void:
+	_player_hit_events.append(event)
+
+
 func _record_snapshot_send(player_id: int, tick: int) -> void:
 	if not _pending_snapshot_sends.has(player_id):
 		_pending_snapshot_sends[player_id] = {}
@@ -596,3 +632,7 @@ func get_enemy_system() -> EnemySystem:
 func _exit_tree():
 	if EventBus.enemy_died.is_connected(_on_enemy_died):
 		EventBus.enemy_died.disconnect(_on_enemy_died)
+	if EventBus.enemy_hit.is_connected(_on_enemy_hit):
+		EventBus.enemy_hit.disconnect(_on_enemy_hit)
+	if EventBus.player_hit.is_connected(_on_player_hit):
+		EventBus.player_hit.disconnect(_on_player_hit)

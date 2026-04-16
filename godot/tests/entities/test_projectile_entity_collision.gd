@@ -38,27 +38,28 @@ func test_projectile_hits_non_owner_player_returns_player_reason():
 	var reason = proj.advance(0.05, [], [other], [])
 	assert_eq(reason, ProjectileEntity.DespawnReason.PLAYER)
 
-func test_owner_immune_during_spawn_grace():
+func test_owner_passes_through_during_spawn_grace():
 	var proj = _make_projectile(Vector2(100, 100), Vector2.RIGHT, 42)
 	proj.direction = Vector2.ZERO   # override to prevent movement
 	var owner = PlayerEntityScene.instantiate()
 	add_child_autofree(owner)
 	owner.player_id = 42
 	owner.position = Vector2(100, 100)
-	# spawn_grace is 0.10, so at dt=0.05 the grace is still active
+	var reason = proj.advance(0.05, [], [owner], [])
+	assert_eq(reason, ProjectileEntity.DespawnReason.ALIVE)
+
+func test_owner_passes_through_after_grace_expires():
+	# Projectiles never collide with their owner — the player can dash ahead
+	# of a slow projectile without taking self-damage.
+	var proj = _make_projectile(Vector2(100, 100), Vector2.RIGHT, 42)
+	proj.direction = Vector2.ZERO   # override to prevent movement
+	proj.spawn_grace_remaining = 0.0
+	var owner = PlayerEntityScene.instantiate()
+	add_child_autofree(owner)
+	owner.player_id = 42
+	owner.position = Vector2(100, 100)
 	var reason = proj.advance(0.05, [], [owner], [])
 	assert_eq(reason, ProjectileEntity.DespawnReason.ALIVE)
-
-func test_owner_hit_after_grace_expires():
-	var proj = _make_projectile(Vector2(100, 100), Vector2.RIGHT, 42)
-	proj.direction = Vector2.ZERO   # override to prevent movement
-	proj.spawn_grace_remaining = 0.0   # grace already expired
-	var owner = PlayerEntityScene.instantiate()
-	add_child_autofree(owner)
-	owner.player_id = 42
-	owner.position = Vector2(100, 100)
-	var reason = proj.advance(0.05, [], [owner], [])
-	assert_eq(reason, ProjectileEntity.DespawnReason.SELF)
 
 func test_collision_order_walls_before_enemies():
 	# Wall and enemy both in range — walls should win

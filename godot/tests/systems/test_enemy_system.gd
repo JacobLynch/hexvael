@@ -80,3 +80,38 @@ func test_get_enemies_in_radius():
 	_system.advance_all(0.0, {})
 	var nearby = _system.get_enemies_in_radius(Vector2(50, 50), 30.0)
 	assert_eq(nearby.size(), 2, "Should find 2 nearby enemies")
+
+
+func test_enemies_do_not_target_ghost_players():
+	# Enemy in IDLE state ready to detect nearby players
+	var enemy = _make_enemy(10001, Vector2(100, 100))
+	enemy.state = EnemyEntity.State.IDLE
+	_system.register_enemy(enemy)
+
+	# Ghost player within detection radius (default is 300)
+	var ghost_player = _make_player(1, Vector2(120, 100))
+	ghost_player.state = PlayerMovementState.GHOST
+
+	var players: Dictionary = { 1: ghost_player }
+	_system.advance_all(0.1, players)
+
+	assert_eq(enemy.state, EnemyEntity.State.IDLE, "Enemy should not chase ghost player")
+	assert_eq(enemy.target_player_id, -1, "Enemy should not target ghost player")
+
+
+func test_enemy_stops_chasing_when_target_becomes_ghost():
+	# Enemy already chasing a player
+	var enemy = _make_enemy(10001, Vector2(100, 100))
+	enemy.state = EnemyEntity.State.CHASING
+	enemy.target_player_id = 1
+	_system.register_enemy(enemy)
+
+	# Target player dies and becomes ghost
+	var ghost_player = _make_player(1, Vector2(120, 100))
+	ghost_player.state = PlayerMovementState.GHOST
+
+	var players: Dictionary = { 1: ghost_player }
+	_system.advance_all(0.1, players)
+
+	assert_eq(enemy.state, EnemyEntity.State.IDLE, "Enemy should stop chasing ghost player")
+	assert_eq(enemy.target_player_id, -1, "Enemy should clear target when player becomes ghost")

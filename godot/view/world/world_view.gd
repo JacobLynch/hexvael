@@ -15,7 +15,10 @@ var _prev_remote_dodge_state: Dictionary = {}  # entity_id -> bool
 # Tracks the last seen collision_count per remote entity so we can detect
 # momentary wall-collision events and emit synthetic player_collided signals.
 var _prev_remote_collision_count: Dictionary = {}  # entity_id -> int
+# Tracks ghost state for all entities to update ghost visual directly.
+var _prev_ghost_state: Dictionary = {}  # entity_id -> bool
 var _effect_params_cache: Dictionary = {}  ## type_id -> ProjectileEffectParams
+var _ghost_overlay = null
 
 
 func initialize(net_client: NetClient) -> void:
@@ -37,6 +40,17 @@ func initialize(net_client: NetClient) -> void:
 	var wall_bump = preload("res://view/effects/wall_bump.gd").new()
 	add_child(wall_bump)
 	wall_bump.initialize(_camera_rig, _net_client)
+	var damage_number_spawner = preload("res://view/effects/damage_number_spawner.gd").new()
+	add_child(damage_number_spawner)
+	damage_number_spawner.initialize(self)
+	var health_bar_manager = preload("res://view/ui/health_bar_manager.gd").new()
+	add_child(health_bar_manager)
+	health_bar_manager.initialize(self, _enemy_views)
+	var player_health_bar_manager = preload("res://view/ui/player_health_bar_manager.gd").new()
+	add_child(player_health_bar_manager)
+	player_health_bar_manager.initialize(self, _player_views)
+	_ghost_overlay = preload("res://view/effects/ghost_overlay.gd").new()
+	add_child(_ghost_overlay)
 	EventBus.player_dodge_started.connect(_on_any_dodge_started)
 	EventBus.enemy_hit.connect(_on_enemy_hit)
 	EventBus.projectile_spawned.connect(_on_projectile_spawned_for_recoil)
@@ -53,8 +67,10 @@ func register_effect_params(type_id: int, params: ProjectileEffectParams) -> voi
 	_effect_params_cache[type_id] = params
 
 
-func _on_connected(_player_id: int):
-	pass  # Local player view created when first snapshot arrives
+func _on_connected(player_id: int):
+	if _ghost_overlay != null:
+		_ghost_overlay.initialize(player_id)
+	# Local player view created when first snapshot arrives
 
 
 func _on_disconnected():
@@ -114,6 +130,28 @@ func _process(delta: float):
 			var local_vel = _net_client.get_local_player_velocity()
 			if local_vel != null:
 				vel_mag = local_vel.length()
+
+			# Update ghost visual and emit events for local player.
+			# Uses state-diff tracking (same as remote players) which is more
+			# reliable than net_client's reconciliation-based detection.
+			const GHOST_LOCAL = 2  # PlayerMovementState.GHOST
+			var was_ghost: bool = _prev_ghost_state.get(player_id, false)
+			var is_ghost: bool = (state == GHOST_LOCAL)
+			if is_ghost != was_ghost:
+				if view.has_method("set_ghost_visual"):
+					view.set_ghost_visual(is_ghost)
+				if is_ghost:
+					EventBus.player_ghost_started.emit({
+						"entity_id": player_id,
+						"position": view.position,
+						"duration": 5.0,
+					})
+				else:
+					EventBus.player_respawned.emit({
+						"entity_id": player_id,
+						"position": view.position,
+					})
+				_prev_ghost_state[player_id] = is_ghost
 		else:
 			var interp_pos = _net_client.get_interpolated_position(player_id)
 			if interp_pos != null:
@@ -169,6 +207,26 @@ func _process(delta: float):
 					})
 				_prev_remote_collision_count[player_id] = collision_count
 
+				# Update ghost visual and emit events for remote players.
+				const GHOST = 2  # PlayerMovementState.GHOST
+				var was_ghost: bool = _prev_ghost_state.get(player_id, false)
+				var is_ghost: bool = (state == GHOST)
+				if is_ghost != was_ghost:
+					if view.has_method("set_ghost_visual"):
+						view.set_ghost_visual(is_ghost)
+					if is_ghost:
+						EventBus.player_ghost_started.emit({
+							"entity_id": player_id,
+							"position": view.position,
+							"duration": 5.0,
+						})
+					else:
+						EventBus.player_respawned.emit({
+							"entity_id": player_id,
+							"position": view.position,
+						})
+					_prev_ghost_state[player_id] = is_ghost
+
 		view.update_visual_state(aim, state, vel_mag, delta)
 
 	# Enemy views
@@ -206,6 +264,7 @@ func _remove_player_view(player_id: int):
 		_player_views.erase(player_id)
 	_prev_remote_dodge_state.erase(player_id)
 	_prev_remote_collision_count.erase(player_id)
+	_prev_ghost_state.erase(player_id)
 
 
 func _add_enemy_view(entity_id: int, pos: Vector2) -> void:
@@ -228,7 +287,7 @@ func _on_enemy_died(event: Dictionary) -> void:
 	effect.set_script(EnemyDeathEffect)
 	effect.position = event["position"]
 	add_child(effect)
-	_remove_enemy_view(event["entity_id"])
+	_remove_enemy_view(event["target_entity_id"])
 
 
 func _on_any_dodge_started(event: Dictionary):
@@ -241,10 +300,10 @@ func _on_any_dodge_started(event: Dictionary):
 
 
 func _on_enemy_hit(event: Dictionary) -> void:
-	var entity_id: int = event.get("entity_id", -1)
+	var entity_id: int = event.get("target_entity_id", -1)
+	# Default flash for all hits - white flash for 0.1s
 	var flash_color: Color = event.get("flash_color", Color.WHITE)
 	var flash_duration: float = event.get("flash_duration", 0.1)
-	var cling_scene: PackedScene = event.get("cling_scene", null)
 
 	if entity_id < 0:
 		return
@@ -253,12 +312,6 @@ func _on_enemy_hit(event: Dictionary) -> void:
 	if enemy_view != null:
 		if enemy_view.has_method("flash_hit"):
 			enemy_view.flash_hit(flash_color, flash_duration)
-		# Spawn cling effect attached to enemy
-		if cling_scene != null:
-			var cling = cling_scene.instantiate()
-			cling.target_node = enemy_view
-			cling.global_position = enemy_view.global_position
-			add_child(cling)
 
 
 func _on_projectile_spawned_for_recoil(event: Dictionary) -> void:

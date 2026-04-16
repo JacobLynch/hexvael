@@ -8,6 +8,12 @@ var _next_server_id: int = 1
 var _walls: Array[Rect2] = []
 var _fire_cooldown: Dictionary = {}      # player_id -> seconds remaining
 var _current_rtt_ms: int = 0             # local client's RTT estimate for rejection timeout
+var _damage_system: DamageSystem = null
+
+
+func set_damage_system(damage_system: DamageSystem) -> void:
+	_damage_system = damage_system
+
 
 func set_walls(aabbs: Array[Rect2]) -> void:
 	_walls = aabbs
@@ -129,12 +135,20 @@ func on_despawn_event(projectile_id: int, reason: int, pos: Vector2, target_enti
 
 func advance(dt: float, players: Array, enemies: Array) -> Array:
 	var despawned: Array = []
-	var rejection_timeout_s: float = 2.0 * (_current_rtt_ms / 1000.0) + 0.1
+	# Floor at 0.5s so a zero/stale RTT estimate (e.g. before the first snapshot
+	# ack lands) can't starve a legitimate round-trip. Adoption in the worst
+	# case is roughly RTT + 2*tick_dt + send jitter; a valid fire must be able
+	# to outrun this window even when _current_rtt_ms hasn't warmed up yet.
+	var rejection_timeout_s: float = max(2.0 * (_current_rtt_ms / 1000.0) + 0.1, 0.5)
 
-	# Build enemy lookup for knockback application
+	# Build enemy lookup for damage and knockback application
 	var enemy_lookup: Dictionary = {}
 	for enemy in enemies:
 		enemy_lookup[enemy.entity_id] = enemy
+
+	var player_lookup: Dictionary = {}
+	for player in players:
+		player_lookup[player.player_id] = player
 
 	for id in projectiles.keys():
 		var p: ProjectileEntity = projectiles[id]
@@ -148,8 +162,32 @@ func advance(dt: float, players: Array, enemies: Array) -> Array:
 				reason = ProjectileEntity.DespawnReason.REJECTED
 
 		if reason != ProjectileEntity.DespawnReason.ALIVE:
-			# Apply knockback on enemy hit
-			if reason == ProjectileEntity.DespawnReason.ENEMY:
+			# Apply damage and knockback on entity hits
+			if _damage_system != null:
+				var source_info = {
+					"source_entity_id": p.owner_player_id,
+					"projectile_id": p.projectile_id,
+					"element": p.params.element,
+				}
+
+				if reason == ProjectileEntity.DespawnReason.ENEMY:
+					var enemy: EnemyEntity = enemy_lookup.get(p.last_hit_entity_id)
+					if enemy != null:
+						_damage_system.apply_damage(enemy, p.params.damage, source_info)
+						if p.params.knockback_force > 0.0:
+							enemy.apply_knockback(
+								p.direction,
+								p.params.knockback_force,
+								p.params.knockback_stagger
+							)
+
+				elif reason == ProjectileEntity.DespawnReason.PLAYER:
+					var player = player_lookup.get(p.last_hit_entity_id)
+					if player != null:
+						_damage_system.apply_damage(player, p.params.damage, source_info)
+
+			elif reason == ProjectileEntity.DespawnReason.ENEMY:
+				# Fallback: apply knockback without damage (client-side)
 				var enemy: EnemyEntity = enemy_lookup.get(p.last_hit_entity_id)
 				if enemy != null and p.params.knockback_force > 0.0:
 					enemy.apply_knockback(
@@ -178,18 +216,41 @@ func advance(dt: float, players: Array, enemies: Array) -> Array:
 	return despawned
 
 
-func can_fire(player_id: int) -> bool:
-	return _fire_cooldown.get(player_id, 0.0) <= 0.0
+func can_fire(player_id: int, tolerance: float = 0.0) -> bool:
+	# `tolerance` lets the server accept fires that land up to one tick before
+	# cooldown drains to zero. Necessary because the 30Hz server grain can't
+	# exactly match the client's finer display-rate cadence — without tolerance
+	# a client prediction that's "on time" by its clock arrives half a tick
+	# early by the server's and gets rejected on alternating shots.
+	# Client prediction keeps `tolerance = 0` so its own cadence stays clean.
+	return _fire_cooldown.get(player_id, 0.0) <= tolerance
+
+
+func can_player_fire(player: PlayerEntity) -> bool:
+	if player.state == PlayerMovementState.GHOST:
+		return false
+	return can_fire(player.player_id)
 
 
 func start_cooldown(player_id: int, type_id: int = ProjectileType.Id.TEST) -> void:
+	# Credit-carry: accumulate onto the existing (possibly negative) residual
+	# so the last cycle's overshoot compensates this cycle. Without this, the
+	# effective cadence is ceil(fire_cooldown / dt) * dt — always slower than
+	# configured — and drifts out of sync between client (frame-dt) and server
+	# (tick-dt), producing orphaned predictions that get REJECTED.
 	var params := ProjectileType.get_params(type_id)
-	_fire_cooldown[player_id] = params.fire_cooldown
+	var current: float = _fire_cooldown.get(player_id, 0.0)
+	_fire_cooldown[player_id] = current + params.fire_cooldown
 
 
 func tick_cooldowns(dt: float) -> void:
+	# Drain only while positive. The one drain that crosses zero leaves a
+	# negative residual that start_cooldown will fold into the next cycle;
+	# continuing to drain would discard that credit and desync cadence.
 	for id in _fire_cooldown.keys():
-		_fire_cooldown[id] = max(0.0, _fire_cooldown[id] - dt)
+		var remaining: float = _fire_cooldown[id]
+		if remaining > 0.0:
+			_fire_cooldown[id] = remaining - dt
 
 
 func clear_cooldown(player_id: int) -> void:

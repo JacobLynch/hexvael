@@ -56,7 +56,7 @@ func test_encode_decode_snapshot_no_enemies():
 func test_encode_decode_enemy_died():
 	var msg = {
 		"type": MessageTypes.Binary.ENEMY_DIED,
-		"entity_id": 10005,
+		"target_entity_id": 10005,
 		"position": Vector2(123.5, 456.75),
 		"killer_id": 2,
 	}
@@ -65,10 +65,96 @@ func test_encode_decode_enemy_died():
 
 	var decoded = NetMessage.decode_binary(bytes)
 	assert_eq(decoded["type"], MessageTypes.Binary.ENEMY_DIED)
-	assert_eq(decoded["entity_id"], 10005)
+	assert_eq(decoded["target_entity_id"], 10005)
 	assert_almost_eq(decoded["position"].x, 123.5, 0.01)
 	assert_almost_eq(decoded["position"].y, 456.75, 0.01)
 	assert_eq(decoded["killer_id"], 2)
+
+
+func test_encode_decode_enemy_hit_full_payload():
+	var event = {
+		"target_entity_id": 10042,
+		"position": Vector2(250.0, 125.5),
+		"damage": 25,
+		"remaining_health": 75,
+		"max_health": 100,
+		"source_entity_id": 3,
+		"element": "frost",
+		"chain_depth": 2,
+		"projectile_id": 9000,
+	}
+	var bytes = NetMessage.encode_enemy_hit(event)
+	assert_eq(bytes.size(), MessageTypes.Layout.ENEMY_HIT_SIZE)
+
+	var decoded = NetMessage.decode_enemy_hit(bytes)
+	assert_eq(decoded["target_entity_id"], 10042)
+	assert_almost_eq(decoded["position"].x, 250.0, 0.01)
+	assert_eq(decoded["damage"], 25)
+	assert_eq(decoded["remaining_health"], 75)
+	assert_eq(decoded["max_health"], 100)
+	assert_eq(decoded["source_entity_id"], 3)
+	assert_eq(decoded["element"], "frost")
+	assert_eq(decoded["chain_depth"], 2)
+	assert_eq(decoded["projectile_id"], 9000)
+	assert_false(decoded.has("entity_id"), "Alias key entity_id must not be present")
+
+
+func test_encode_decode_player_hit_full_payload():
+	var event = {
+		"target_entity_id": 1,
+		"position": Vector2(800.0, 400.0),
+		"damage": 10,
+		"remaining_health": 90,
+		"max_health": 100,
+		"source_entity_id": 2,
+		"element": "fire",
+		"chain_depth": 0,
+		"projectile_id": 4242,
+	}
+	var bytes = NetMessage.encode_player_hit(event)
+	var decoded = NetMessage.decode_player_hit(bytes)
+	assert_eq(decoded["target_entity_id"], 1)
+	assert_eq(decoded["source_entity_id"], 2)
+	assert_eq(decoded["element"], "fire")
+	assert_eq(decoded["chain_depth"], 0)
+	assert_eq(decoded["projectile_id"], 4242)
+
+
+func test_enemy_hit_negative_sentinels_round_trip():
+	# -1 source/projectile (damage with no identifiable origin) must survive
+	# wire round-trip unchanged.
+	var event = {
+		"target_entity_id": 10001,
+		"position": Vector2(0, 0),
+		"damage": 5,
+		"remaining_health": 45,
+		"max_health": 50,
+		"source_entity_id": -1,
+		"element": "physical",
+		"chain_depth": 0,
+		"projectile_id": -1,
+	}
+	var bytes = NetMessage.encode_enemy_hit(event)
+	var decoded = NetMessage.decode_enemy_hit(bytes)
+	assert_eq(decoded["source_entity_id"], -1)
+	assert_eq(decoded["projectile_id"], -1)
+
+
+func test_enemy_hit_unknown_element_round_trips_as_unknown():
+	var event = {
+		"target_entity_id": 10001,
+		"position": Vector2(0, 0),
+		"damage": 1,
+		"remaining_health": 49,
+		"max_health": 50,
+		"source_entity_id": 1,
+		"element": "not_a_real_element",
+		"chain_depth": 0,
+		"projectile_id": 1,
+	}
+	var bytes = NetMessage.encode_enemy_hit(event)
+	var decoded = NetMessage.decode_enemy_hit(bytes)
+	assert_eq(decoded["element"], "unknown")
 
 
 func test_snapshot_diff_with_enemies():

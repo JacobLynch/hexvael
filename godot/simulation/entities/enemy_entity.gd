@@ -17,12 +17,14 @@ var _params: EnemyParams = null
 var knockback_velocity: Vector2 = Vector2.ZERO
 var stagger_timer: float = 0.0
 var _cached_collision_radius: float = -1.0
+var health: HealthComponent = null
 
 
 func initialize(id: int, spawn_position: Vector2, params: EnemyParams) -> void:
 	entity_id = id
 	position = spawn_position
 	_params = params
+	health = HealthComponent.new(params.max_health)
 	actual_speed = params.base_speed * (1.0 + RNG.next_float_range(
 		-params.speed_variation, params.speed_variation))
 	spawn_timer = params.base_spawn_duration * (1.0 + RNG.next_float_range(
@@ -33,7 +35,15 @@ func initialize(id: int, spawn_position: Vector2, params: EnemyParams) -> void:
 func advance(dt: float, players: Array, neighbors: Array) -> void:
 	# Handle knockback stagger first — skip normal AI while staggered
 	if stagger_timer > 0.0:
-		position += knockback_velocity * dt
+		# Use move_and_collide to respect wall collisions during knockback
+		var motion: Vector2 = knockback_velocity * dt
+		var collision = move_and_collide(motion)
+		if collision:
+			# Slide along the wall and kill velocity in the collision direction
+			var remainder = collision.get_remainder()
+			move_and_collide(remainder.slide(collision.get_normal()))
+			# Zero out velocity component into the wall to prevent repeated pushing
+			knockback_velocity = knockback_velocity.slide(collision.get_normal())
 		knockback_velocity *= exp(-KNOCKBACK_FRICTION * dt)
 		stagger_timer -= dt
 		if stagger_timer <= 0.0:
@@ -247,6 +257,8 @@ func to_snapshot_data() -> Dictionary:
 		"state": state,
 		"facing": facing,
 		"spawn_timer": spawn_timer,
+		"health": health.current if health != null else 0,
+		"max_health": health.max_health if health != null else 0,
 	}
 
 

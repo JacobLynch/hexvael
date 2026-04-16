@@ -25,6 +25,8 @@ signal player_dodge_started(event: Dictionary)   # entity_id, position, directio
 signal player_dodge_ended(event: Dictionary)     # entity_id
 signal player_collided(event: Dictionary)        # entity_id, position, normal, velocity
 signal player_moved(event: Dictionary)           # entity_id, position, velocity
+signal player_ghost_started(event: Dictionary)   # entity_id, position, duration
+signal player_respawned(event: Dictionary)       # entity_id, position
 
 # Enemies
 signal enemy_spawned(event: Dictionary)
