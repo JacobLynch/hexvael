@@ -16,10 +16,17 @@ var _projectile_system: ProjectileSystem
 ## Reference to net client for local player check
 var _net_client: NetClient
 
+## Reference to camera rig for camera effects
+var _camera_rig: CameraRig
+
 
 ## Set by client_main after connection
 func set_net_client(net_client: NetClient) -> void:
 	_net_client = net_client
+
+
+func set_camera_rig(camera_rig: CameraRig) -> void:
+	_camera_rig = camera_rig
 
 
 func initialize(projectile_system: ProjectileSystem) -> void:
@@ -57,6 +64,10 @@ func spawn_local_muzzle_flash(pos: Vector2, dir: Vector2, type_id: int) -> void:
 	if muzzle.get("direction") != null:
 		muzzle.direction = dir
 	add_child(muzzle)
+
+	# Camera kick for local player
+	if _camera_rig != null and params != null and params.camera_kick_amplitude > 0.0:
+		_camera_rig.add_kick(dir, params.camera_kick_amplitude)
 
 
 func _on_projectile_spawned(event: Dictionary) -> void:
