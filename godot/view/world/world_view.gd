@@ -241,7 +241,7 @@ func _on_any_dodge_started(event: Dictionary):
 
 
 func _on_enemy_hit(event: Dictionary) -> void:
-	var entity_id: int = event.get("entity_id", -1)
+	var entity_id: int = event.get("target_entity_id", event.get("entity_id", -1))
 	var flash_color: Color = event.get("flash_color", Color.WHITE)
 	var flash_duration: float = event.get("flash_duration", 0.1)
 	var cling_scene: PackedScene = event.get("cling_scene", null)
