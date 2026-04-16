@@ -3,6 +3,8 @@ extends CharacterBody2D
 
 enum State { SPAWNING = 0, IDLE = 1, CHASING = 2, DEAD = 3 }
 
+const KNOCKBACK_FRICTION: float = 12.0  ## Velocity decay rate during stagger
+
 var entity_id: int = -1
 var state: int = State.SPAWNING
 var facing: Vector2 = Vector2.RIGHT
@@ -11,6 +13,9 @@ var actual_speed: float = 0.0
 var spawn_timer: float = 0.0
 var _wander_target: Vector2 = Vector2.ZERO
 var _params: EnemyParams = null
+# Knockback state
+var knockback_velocity: Vector2 = Vector2.ZERO
+var stagger_timer: float = 0.0
 var _cached_collision_radius: float = -1.0
 
 
@@ -26,6 +31,16 @@ func initialize(id: int, spawn_position: Vector2, params: EnemyParams) -> void:
 
 
 func advance(dt: float, players: Array, neighbors: Array) -> void:
+	# Handle knockback stagger first — skip normal AI while staggered
+	if stagger_timer > 0.0:
+		position += knockback_velocity * dt
+		knockback_velocity *= exp(-KNOCKBACK_FRICTION * dt)
+		stagger_timer -= dt
+		if stagger_timer <= 0.0:
+			knockback_velocity = Vector2.ZERO
+			stagger_timer = 0.0
+		return
+
 	match state:
 		State.SPAWNING:
 			_advance_spawning(dt)
@@ -209,6 +224,20 @@ func get_collision_rect() -> Rect2:
 		push_warning("EnemyEntity: unknown collision shape, using 16 px fallback")
 		half = Vector2(16, 16)
 	return Rect2(position - half, half * 2.0)
+
+
+## Apply knockback impulse. Direction should be normalized.
+## TODO(TCE): Migrate to effect system. This should become:
+##   - "knockback" effect type in TCE
+##   - Trigger data in projectile/gear params instead of hardcoded values
+##   - Effect executor calls apply_knockback() with params from trigger
+func apply_knockback(direction: Vector2, force: float, stagger: float) -> void:
+	if _params == null or _params.mass >= 3.0:
+		return  # Heavy enemies immune
+	var actual_force: float = force / _params.mass
+	var actual_stagger: float = stagger / _params.mass
+	knockback_velocity = direction.normalized() * actual_force
+	stagger_timer = actual_stagger
 
 
 func to_snapshot_data() -> Dictionary:

@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://frost_bolt_streak"]
+
+[ext_resource type="Script" path="res://view/effects/frost_bolt_streak.gd" id="1_script"]
+
+[node name="FrostBoltStreak" type="Node2D"]
+script = ExtResource("1_script")

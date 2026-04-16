@@ -15,6 +15,7 @@ var _prev_remote_dodge_state: Dictionary = {}  # entity_id -> bool
 # Tracks the last seen collision_count per remote entity so we can detect
 # momentary wall-collision events and emit synthetic player_collided signals.
 var _prev_remote_collision_count: Dictionary = {}  # entity_id -> int
+var _effect_params_cache: Dictionary = {}  ## type_id -> ProjectileEffectParams
 
 
 func initialize(net_client: NetClient) -> void:
@@ -38,12 +39,18 @@ func initialize(net_client: NetClient) -> void:
 	wall_bump.initialize(_camera_rig, _net_client)
 	EventBus.player_dodge_started.connect(_on_any_dodge_started)
 	EventBus.enemy_hit.connect(_on_enemy_hit)
+	EventBus.projectile_spawned.connect(_on_projectile_spawned_for_recoil)
 
 
 func get_player_view_position(player_id: int) -> Variant:
 	if _player_views.has(player_id):
 		return _player_views[player_id].position
 	return null
+
+
+## Register effect params for a projectile type (called during setup).
+func register_effect_params(type_id: int, params: ProjectileEffectParams) -> void:
+	_effect_params_cache[type_id] = params
 
 
 func _on_connected(_player_id: int):
@@ -237,13 +244,38 @@ func _on_enemy_hit(event: Dictionary) -> void:
 	var entity_id: int = event.get("entity_id", -1)
 	var flash_color: Color = event.get("flash_color", Color.WHITE)
 	var flash_duration: float = event.get("flash_duration", 0.1)
+	var cling_scene: PackedScene = event.get("cling_scene", null)
 
 	if entity_id < 0:
 		return
 
 	var enemy_view = _enemy_views.get(entity_id)
-	if enemy_view != null and enemy_view.has_method("flash_hit"):
-		enemy_view.flash_hit(flash_color, flash_duration)
+	if enemy_view != null:
+		if enemy_view.has_method("flash_hit"):
+			enemy_view.flash_hit(flash_color, flash_duration)
+		# Spawn cling effect attached to enemy
+		if cling_scene != null:
+			var cling = cling_scene.instantiate()
+			cling.target_node = enemy_view
+			cling.global_position = enemy_view.global_position
+			add_child(cling)
+
+
+func _on_projectile_spawned_for_recoil(event: Dictionary) -> void:
+	var owner_id: int = event.get("owner_player_id", -1)
+	var type_id: int = event.get("type_id", -1)
+	var direction: Vector2 = event.get("direction", Vector2.RIGHT)
+
+	if owner_id < 0 or type_id < 0:
+		return
+
+	var params: ProjectileEffectParams = _effect_params_cache.get(type_id)
+	if params == null or params.sprite_recoil_distance <= 0.0:
+		return
+
+	var player_view = _player_views.get(owner_id)
+	if player_view != null and player_view.has_method("apply_recoil"):
+		player_view.apply_recoil(direction, params.sprite_recoil_distance)
 
 
 func _exit_tree():
@@ -251,6 +283,8 @@ func _exit_tree():
 		EventBus.player_dodge_started.disconnect(_on_any_dodge_started)
 	if EventBus.enemy_hit.is_connected(_on_enemy_hit):
 		EventBus.enemy_hit.disconnect(_on_enemy_hit)
+	if EventBus.projectile_spawned.is_connected(_on_projectile_spawned_for_recoil):
+		EventBus.projectile_spawned.disconnect(_on_projectile_spawned_for_recoil)
 	if _net_client != null:
 		if _net_client.connected.is_connected(_on_connected):
 			_net_client.connected.disconnect(_on_connected)

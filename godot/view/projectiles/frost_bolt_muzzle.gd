@@ -9,12 +9,15 @@ var direction: Vector2 = Vector2.RIGHT
 @onready var flash: Polygon2D = $Flash
 @onready var particles: CPUParticles2D = $Particles
 @onready var light: PointLight2D = $Light
+@onready var vapor: CPUParticles2D = $Vapor
 
 
 func _ready() -> void:
 	rotation = direction.angle()
 	if particles:
 		particles.emitting = true
+	if vapor:
+		vapor.emitting = true
 	_animate()
 
 

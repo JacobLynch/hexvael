@@ -16,10 +16,17 @@ var _projectile_system: ProjectileSystem
 ## Reference to net client for local player check
 var _net_client: NetClient
 
+## Reference to camera rig for camera effects
+var _camera_rig: CameraRig
+
 
 ## Set by client_main after connection
 func set_net_client(net_client: NetClient) -> void:
 	_net_client = net_client
+
+
+func set_camera_rig(camera_rig: CameraRig) -> void:
+	_camera_rig = camera_rig
 
 
 func initialize(projectile_system: ProjectileSystem) -> void:
@@ -58,6 +65,10 @@ func spawn_local_muzzle_flash(pos: Vector2, dir: Vector2, type_id: int) -> void:
 		muzzle.direction = dir
 	add_child(muzzle)
 
+	# Camera kick for local player
+	if _camera_rig != null and params != null and params.camera_kick_amplitude > 0.0:
+		_camera_rig.add_kick(dir, params.camera_kick_amplitude)
+
 
 func _on_projectile_spawned(event: Dictionary) -> void:
 	var type_id: int = event["type_id"]
@@ -91,6 +102,15 @@ func _on_projectile_spawned(event: Dictionary) -> void:
 		if muzzle.get("direction") != null:
 			muzzle.direction = dir
 		add_child(muzzle)
+
+	# Spawn launch streak if configured
+	if params.launch_streak_scene != null:
+		var streak = params.launch_streak_scene.instantiate()
+		if streak.has_method("initialize"):
+			streak.initialize(pos, proj_id, _projectile_system)
+		else:
+			streak.global_position = pos
+		add_child(streak)
 
 
 func _on_projectile_despawned(event: Dictionary) -> void:
@@ -129,7 +149,7 @@ func _on_projectile_despawned(event: Dictionary) -> void:
 		if reason == ProjectileEntity.DespawnReason.ENEMY:
 			var target_id: int = event.get("target_entity_id", -1)
 			if target_id >= 0:
-				_flash_enemy(target_id, params.enemy_flash_color, params.enemy_flash_duration)
+				_flash_enemy(target_id, params.enemy_flash_color, params.enemy_flash_duration, params.enemy_cling_scene)
 
 	elif reason == ProjectileEntity.DespawnReason.LIFETIME and params.expire_scene != null:
 		var expire = params.expire_scene.instantiate()
@@ -137,11 +157,12 @@ func _on_projectile_despawned(event: Dictionary) -> void:
 		add_child(expire)
 
 
-func _flash_enemy(entity_id: int, color: Color, duration: float) -> void:
+func _flash_enemy(entity_id: int, color: Color, duration: float, cling_scene: PackedScene = null) -> void:
 	EventBus.enemy_hit.emit({
 		"entity_id": entity_id,
 		"flash_color": color,
 		"flash_duration": duration,
+		"cling_scene": cling_scene,
 	})
 
 
