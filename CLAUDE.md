@@ -114,7 +114,7 @@ This guarantees sync by construction. Never define collision or world layout sep
 
 ### Simulation math is dt-independent
 
-Every simulation step function takes a `dt` parameter (seconds since last step) and produces the same result regardless of how dt is chunked. The server calls these functions once per 20Hz tick (`dt = 0.05`); the client may call them every display frame (`dt = frame_delta`) for prediction. They must converge.
+Every simulation step function takes a `dt` parameter (seconds since last step) and produces the same result regardless of how dt is chunked. The server calls these functions once per 30Hz tick (`dt ≈ 0.033`); the client may call them every display frame (`dt = frame_delta`) for prediction. They must converge.
 
 ```gdscript
 # WRONG — framerate-dependent, silently diverges between client and server

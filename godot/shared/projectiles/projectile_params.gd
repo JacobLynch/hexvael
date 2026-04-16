@@ -19,3 +19,7 @@ extends Resource
 @export var knockback_force: float = 0.0
 ## Stagger duration in seconds. Enemy pauses AI during this time.
 @export var knockback_stagger: float = 0.0
+## Damage dealt on hit. 0 = no damage.
+@export var damage: int = 0
+## Element type for TCE triggers (e.g., "frost", "fire", "physical")
+@export var element: String = "physical"

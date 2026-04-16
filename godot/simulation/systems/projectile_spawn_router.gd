@@ -9,7 +9,18 @@ static func handle_fire(
 	var flags: int = input.get("action_flags", 0)
 	if (flags & MessageTypes.InputActionFlags.FIRE) == 0:
 		return
-	if not projectile_system.can_fire(player.player_id):
+	# Block firing during ghost state - ghosts can't attack, and client/server
+	# positions can diverge significantly during ghost making projectile sync unreliable.
+	if player.state == PlayerMovementState.GHOST:
+		return
+	# Server accepts fires up to one tick before cooldown fully drains, so a
+	# client prediction made on the client's finer-grained clock isn't rejected
+	# by the 30Hz server grain on alternating shots. Client prediction uses the
+	# default tolerance=0 path.
+	var fire_tolerance_s: float = 0.0
+	if context.get("authoritative", false):
+		fire_tolerance_s = MessageTypes.TICK_INTERVAL_MS / 1000.0
+	if not projectile_system.can_fire(player.player_id, fire_tolerance_s):
 		return
 
 	var aim: Vector2 = player.aim_direction

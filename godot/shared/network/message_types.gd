@@ -9,6 +9,8 @@ enum Binary {
 	ENEMY_DIED           = 5,
 	PROJECTILE_SPAWNED   = 6,
 	PROJECTILE_DESPAWNED = 7,
+	ENEMY_HIT            = 8,
+	PLAYER_HIT           = 9,
 }
 
 # JSON message types — value of the "type" key
@@ -37,6 +39,54 @@ enum InputActionFlags {
 	FIRE  = 2,  # bit 1
 }
 
+# Element tag carried on hit events. Wire-level u8; runtime representation is
+# the string (for readability and TCE trigger matching). Add entries here as
+# new element strings appear on gear/projectile params.
+enum Element {
+	UNKNOWN   = 0,
+	PHYSICAL  = 1,
+	FROST     = 2,
+	FIRE      = 3,
+	LIGHTNING = 4,
+	POISON    = 5,
+	ARCANE    = 6,
+	HOLY      = 7,
+	SHADOW    = 8,
+}
+
+const _ELEMENT_STRING_BY_ID: Dictionary = {
+	Element.UNKNOWN:   "unknown",
+	Element.PHYSICAL:  "physical",
+	Element.FROST:     "frost",
+	Element.FIRE:      "fire",
+	Element.LIGHTNING: "lightning",
+	Element.POISON:    "poison",
+	Element.ARCANE:    "arcane",
+	Element.HOLY:      "holy",
+	Element.SHADOW:    "shadow",
+}
+
+const _ELEMENT_ID_BY_STRING: Dictionary = {
+	"unknown":   Element.UNKNOWN,
+	"physical":  Element.PHYSICAL,
+	"frost":     Element.FROST,
+	"fire":      Element.FIRE,
+	"lightning": Element.LIGHTNING,
+	"poison":    Element.POISON,
+	"arcane":    Element.ARCANE,
+	"holy":      Element.HOLY,
+	"shadow":    Element.SHADOW,
+}
+
+static func element_to_id(element: String) -> int:
+	if _ELEMENT_ID_BY_STRING.has(element):
+		return _ELEMENT_ID_BY_STRING[element]
+	push_warning("MessageTypes.element_to_id: unknown element '%s' — encoded as UNKNOWN" % element)
+	return Element.UNKNOWN
+
+static func element_from_id(id: int) -> String:
+	return _ELEMENT_STRING_BY_ID.get(id, "unknown")
+
 # Binary layout sizes in bytes
 class Layout:
 	# Snapshot frame header: [msg_type: u8][tick: u32][entity_count: u16]
@@ -45,7 +95,8 @@ class Layout:
 	#             [vx:f32][vy:f32][aim_x:f32][aim_y:f32][state:u8]
 	#             [dodge_time_remaining:f32][collision_count:u8]
 	#             [last_collision_normal_x:f32][last_collision_normal_y:f32]
-	const ENTITY_SIZE = 45
+	#             [ghost_timer:f32]
+	const ENTITY_SIZE = 49
 	# Player input: [msg_type:u8][tick:u32][move_x:f32][move_y:f32]
 	#               [aim_x:f32][aim_y:f32][action_flags:u8][input_seq:u32]
 	const INPUT_SIZE = 26
@@ -62,6 +113,11 @@ class Layout:
 	# Projectile despawned: [type:u8][projectile_id:u16][reason:u8][x:f32][y:f32][target_entity_id:s16]
 	#                       [tick_age_ms:u8]
 	const PROJECTILE_DESPAWNED_SIZE = 15
+	# Enemy hit: [type:u8][target_entity_id:u16][x:f32][y:f32][damage:u16][remaining_health:u16][max_health:u16]
+	#            [source_entity_id:s16][element:u8][chain_depth:u8][projectile_id:s16]
+	const ENEMY_HIT_SIZE = 23
+	# Player hit: same layout as enemy hit
+	const PLAYER_HIT_SIZE = 23
 
 # Limits
 const MAX_PLAYERS = 8

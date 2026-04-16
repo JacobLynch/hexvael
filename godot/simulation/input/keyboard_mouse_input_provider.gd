@@ -47,3 +47,7 @@ func consume_fire_press() -> bool:
 	var v = _fire_latch
 	_fire_latch = false
 	return v
+
+
+func is_fire_held() -> bool:
+	return Input.is_action_pressed("fire")
