@@ -45,7 +45,11 @@ func advance_all(dt: float, players: Dictionary) -> void:
 		if enemy.state == EnemyEntity.State.IDLE or enemy.state == EnemyEntity.State.CHASING:
 			_spatial_grid.insert(enemy, enemy.position)
 
-	var player_array: Array = players.values()
+	# Filter out ghost players — enemies should not target dead players
+	var player_array: Array = []
+	for player in players.values():
+		if player.state != PlayerMovementState.GHOST:
+			player_array.append(player)
 
 	# Advance each enemy
 	for enemy in _enemies.values():

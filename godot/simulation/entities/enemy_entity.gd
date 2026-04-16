@@ -35,7 +35,15 @@ func initialize(id: int, spawn_position: Vector2, params: EnemyParams) -> void:
 func advance(dt: float, players: Array, neighbors: Array) -> void:
 	# Handle knockback stagger first — skip normal AI while staggered
 	if stagger_timer > 0.0:
-		position += knockback_velocity * dt
+		# Use move_and_collide to respect wall collisions during knockback
+		var motion: Vector2 = knockback_velocity * dt
+		var collision = move_and_collide(motion)
+		if collision:
+			# Slide along the wall and kill velocity in the collision direction
+			var remainder = collision.get_remainder()
+			move_and_collide(remainder.slide(collision.get_normal()))
+			# Zero out velocity component into the wall to prevent repeated pushing
+			knockback_velocity = knockback_velocity.slide(collision.get_normal())
 		knockback_velocity *= exp(-KNOCKBACK_FRICTION * dt)
 		stagger_timer -= dt
 		if stagger_timer <= 0.0:

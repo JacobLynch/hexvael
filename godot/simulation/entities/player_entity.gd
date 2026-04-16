@@ -34,6 +34,11 @@ var last_collision_normal: Vector2 = Vector2.ZERO
 # re-fire for every replayed input.
 var _suppress_events: bool = false
 
+# When true, respawn is driven by server snapshots, not by local timer expiration.
+# Set on the client's local player so reconciliation handles respawn timing.
+# Server entities leave this false so they respawn when ghost_timer expires.
+var server_authoritative_respawn: bool = false
+
 var _cached_collision_radius: float = -1.0
 
 
@@ -53,14 +58,17 @@ func apply_input(input: Dictionary) -> void:
 	var incoming_aim: Vector2 = input.get("aim_direction", aim_direction)
 	if incoming_aim.length_squared() > 0.001:
 		aim_direction = incoming_aim.normalized()
-	# Block actions during ghost state
+	# Always update input seq — movement inputs ARE processed in ghost state via
+	# _advance_ghost(), so the server must acknowledge them. Without this, the client's
+	# reconciliation never discards pending inputs and position diverges badly.
+	if input.has("input_seq") and input["input_seq"] > last_processed_input_seq:
+		last_processed_input_seq = input["input_seq"]
+	# Block actions during ghost state (movement still applied above via move_input)
 	if state == PlayerMovementState.GHOST:
 		return
 	var flags: int = input.get("action_flags", 0)
 	if (flags & MessageTypes.InputActionFlags.DODGE) != 0 and can_dodge():
 		start_dodge()
-	if input.has("input_seq") and input["input_seq"] > last_processed_input_seq:
-		last_processed_input_seq = input["input_seq"]
 
 
 # Public — NetClient prediction calls this to gate its own dodge starts
@@ -128,13 +136,19 @@ func _advance_ghost(dt: float) -> void:
 		velocity *= exp(-params.friction * dt)
 	position += velocity * dt  # Direct position update, no collision
 
-	if ghost_timer <= 0.0:
+	# Respawn timing: server entities (server_authoritative_respawn=false) respawn
+	# when timer expires. Client's local player (server_authoritative_respawn=true)
+	# waits for the server snapshot to transition state — reconciliation handles
+	# the GHOST->WALKING transition, restoring health and collision. This prevents
+	# double-respawn where client predicts respawn, delayed server snapshot forces
+	# back to GHOST, and then client respawns again when it advances past the timer.
+	if ghost_timer <= 0.0 and not server_authoritative_respawn:
 		_respawn()
 
 
 func _respawn() -> void:
 	state = PlayerMovementState.WALKING
-	position = Vector2.ZERO
+	position = MessageTypes.SPAWN_POSITION
 	health.current = health.max_health
 	velocity = Vector2.ZERO
 	ghost_timer = 0.0

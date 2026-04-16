@@ -82,7 +82,7 @@ func test_ghost_advances_and_respawns():
 
 	player.advance(4.1)
 	assert_eq(player.state, PlayerMovementState.WALKING)
-	assert_eq(player.position, Vector2.ZERO)
+	assert_eq(player.position, MessageTypes.SPAWN_POSITION)
 	assert_eq(player.health.current, 100)
 
 

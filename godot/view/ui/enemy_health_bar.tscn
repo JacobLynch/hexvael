@@ -2,5 +2,5 @@
 
 [ext_resource type="Script" path="res://view/ui/enemy_health_bar.gd" id="1_script"]
 
-[node name="EnemyHealthBar" type="Control"]
+[node name="EnemyHealthBar" type="Node2D"]
 script = ExtResource("1_script")

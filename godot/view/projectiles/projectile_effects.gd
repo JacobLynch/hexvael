@@ -145,11 +145,9 @@ func _on_projectile_despawned(event: Dictionary) -> void:
 		impact.position = pos
 		add_child(impact)
 
-		# Enemy flash
-		if reason == ProjectileEntity.DespawnReason.ENEMY:
-			var target_id: int = event.get("target_entity_id", -1)
-			if target_id >= 0:
-				_flash_enemy(target_id, params.enemy_flash_color, params.enemy_flash_duration, params.enemy_cling_scene)
+		# Enemy flash is now handled by world_view when it receives the
+		# authoritative enemy_hit event from the server. This removes the
+		# incorrect duplicate enemy_hit emission that was missing damage data.
 
 	elif reason == ProjectileEntity.DespawnReason.LIFETIME and params.expire_scene != null:
 		var expire = params.expire_scene.instantiate()
@@ -157,13 +155,6 @@ func _on_projectile_despawned(event: Dictionary) -> void:
 		add_child(expire)
 
 
-func _flash_enemy(entity_id: int, color: Color, duration: float, cling_scene: PackedScene = null) -> void:
-	EventBus.enemy_hit.emit({
-		"target_entity_id": entity_id,
-		"flash_color": color,
-		"flash_duration": duration,
-		"cling_scene": cling_scene,
-	})
 
 
 func _process(delta: float) -> void:

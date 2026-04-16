@@ -9,6 +9,8 @@ enum Binary {
 	ENEMY_DIED           = 5,
 	PROJECTILE_SPAWNED   = 6,
 	PROJECTILE_DESPAWNED = 7,
+	ENEMY_HIT            = 8,
+	PLAYER_HIT           = 9,
 }
 
 # JSON message types — value of the "type" key
@@ -45,7 +47,8 @@ class Layout:
 	#             [vx:f32][vy:f32][aim_x:f32][aim_y:f32][state:u8]
 	#             [dodge_time_remaining:f32][collision_count:u8]
 	#             [last_collision_normal_x:f32][last_collision_normal_y:f32]
-	const ENTITY_SIZE = 45
+	#             [ghost_timer:f32]
+	const ENTITY_SIZE = 49
 	# Player input: [msg_type:u8][tick:u32][move_x:f32][move_y:f32]
 	#               [aim_x:f32][aim_y:f32][action_flags:u8][input_seq:u32]
 	const INPUT_SIZE = 26
@@ -62,6 +65,10 @@ class Layout:
 	# Projectile despawned: [type:u8][projectile_id:u16][reason:u8][x:f32][y:f32][target_entity_id:s16]
 	#                       [tick_age_ms:u8]
 	const PROJECTILE_DESPAWNED_SIZE = 15
+	# Enemy hit: [type:u8][entity_id:u16][x:f32][y:f32][damage:u16][remaining_health:u16][max_health:u16]
+	const ENEMY_HIT_SIZE = 17
+	# Player hit: [type:u8][entity_id:u16][x:f32][y:f32][damage:u16][remaining_health:u16][max_health:u16]
+	const PLAYER_HIT_SIZE = 17
 
 # Limits
 const MAX_PLAYERS = 8

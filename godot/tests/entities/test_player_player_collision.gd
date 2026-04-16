@@ -41,7 +41,7 @@ func test_local_player_stops_at_remote_proxy():
 	# Local player (12x12) and proxy (12x12) — they should collide.
 	# Player at x=100 moving right toward proxy at x=120.
 	# Player edge at 106, proxy edge at 114. Gap = 8px.
-	# At 200px/s * 0.05s = 10px/tick, should reach and stop within a few ticks.
+	# At 200px/s * ~0.033s = ~6.7px/tick, should reach and stop within a few ticks.
 	assert_lt(_local.position.x, 120.0,
 		"Local player should not pass through remote player proxy")
 

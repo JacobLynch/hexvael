@@ -5,12 +5,10 @@ var _timer_label: Label
 var _ghost_timer: float = 0.0
 var _is_ghost: bool = false
 var _local_player_id: int = -1
-var _player_views: Dictionary = {}
 
 
-func initialize(local_player_id: int, player_views: Dictionary) -> void:
+func initialize(local_player_id: int) -> void:
     _local_player_id = local_player_id
-    _player_views = player_views
 
     # Screen overlay (blue tint)
     _overlay = ColorRect.new()
@@ -38,8 +36,9 @@ func initialize(local_player_id: int, player_views: Dictionary) -> void:
 func _on_ghost_started(event: Dictionary) -> void:
     var entity_id: int = event.get("entity_id", -1)
 
-    # Set player view to ghost visual
-    _set_player_ghost_visual(entity_id, true)
+    # NOTE: Ghost visual on player views is managed by WorldView._process via state diff.
+    # This avoids desync when server reconciliation causes state transitions during replay.
+    # ghost_overlay only handles the screen overlay effects for the local player.
 
     # Show overlay for local player
     if entity_id == _local_player_id:
@@ -52,20 +51,14 @@ func _on_ghost_started(event: Dictionary) -> void:
 func _on_respawned(event: Dictionary) -> void:
     var entity_id: int = event.get("entity_id", -1)
 
-    # Clear ghost visual
-    _set_player_ghost_visual(entity_id, false)
+    # NOTE: Ghost visual clearing is managed by WorldView._process via state diff.
+    # ghost_overlay only handles the screen overlay effects for the local player.
 
     # Hide overlay for local player
     if entity_id == _local_player_id:
         _is_ghost = false
         _overlay.visible = false
         _timer_label.visible = false
-
-
-func _set_player_ghost_visual(entity_id: int, is_ghost: bool) -> void:
-    var view = _player_views.get(entity_id)
-    if view != null and view.has_method("set_ghost_visual"):
-        view.set_ghost_visual(is_ghost)
 
 
 func _process(delta: float) -> void:

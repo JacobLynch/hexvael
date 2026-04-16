@@ -22,6 +22,8 @@ var _player_entities: Dictionary = {}  # player_id -> PlayerEntity
 var _enemy_system: EnemySystem
 var _enemy_spawner: EnemySpawner
 var _death_events: Array = []
+var _hit_events: Array = []
+var _player_hit_events: Array = []
 
 # Snapshot baselines: player_id -> Snapshot (last ACK'd)
 var _baselines: Dictionary = {}
@@ -82,6 +84,8 @@ func _ready():
 		push_warning("NetServer: Arena node not found — projectiles will have no wall collisions")
 
 	EventBus.enemy_died.connect(_on_enemy_died)
+	EventBus.enemy_hit.connect(_on_enemy_hit)
+	EventBus.player_hit.connect(_on_player_hit)
 
 	var err = _tcp_server.listen(port)
 	if err == OK:
@@ -492,6 +496,36 @@ func _server_tick():
 				ws.send(death_msg)
 	_death_events.clear()
 
+	# Send queued enemy hit events
+	for hit_event in _hit_events:
+		var hit_msg = NetMessage.encode_enemy_hit({
+			"entity_id": hit_event["entity_id"],
+			"position": hit_event["position"],
+			"damage": hit_event.get("damage", 0),
+			"remaining_health": hit_event.get("remaining_health", 0),
+			"max_health": hit_event.get("max_health", 100),
+		})
+		for peer_id in _peers:
+			var ws: WebSocketPeer = _peers[peer_id]
+			if ws.get_ready_state() == WebSocketPeer.STATE_OPEN:
+				ws.send(hit_msg)
+	_hit_events.clear()
+
+	# Send queued player hit events
+	for hit_event in _player_hit_events:
+		var hit_msg = NetMessage.encode_player_hit({
+			"entity_id": hit_event["entity_id"],
+			"position": hit_event["position"],
+			"damage": hit_event.get("damage", 0),
+			"remaining_health": hit_event.get("remaining_health", 0),
+			"max_health": hit_event.get("max_health", 100),
+		})
+		for peer_id in _peers:
+			var ws: WebSocketPeer = _peers[peer_id]
+			if ws.get_ready_state() == WebSocketPeer.STATE_OPEN:
+				ws.send(hit_msg)
+	_player_hit_events.clear()
+
 	# Broadcast projectile spawn and despawn events collected during this tick.
 	# NOTE: These events are broadcast AFTER snapshots in the same tick, so
 	# clients must handle events that arrive after the snapshot with the same
@@ -557,6 +591,14 @@ func _on_enemy_died(event: Dictionary) -> void:
 	_death_events.append(event)
 
 
+func _on_enemy_hit(event: Dictionary) -> void:
+	_hit_events.append(event)
+
+
+func _on_player_hit(event: Dictionary) -> void:
+	_player_hit_events.append(event)
+
+
 func _record_snapshot_send(player_id: int, tick: int) -> void:
 	if not _pending_snapshot_sends.has(player_id):
 		_pending_snapshot_sends[player_id] = {}
@@ -600,3 +642,7 @@ func get_enemy_system() -> EnemySystem:
 func _exit_tree():
 	if EventBus.enemy_died.is_connected(_on_enemy_died):
 		EventBus.enemy_died.disconnect(_on_enemy_died)
+	if EventBus.enemy_hit.is_connected(_on_enemy_hit):
+		EventBus.enemy_hit.disconnect(_on_enemy_hit)
+	if EventBus.player_hit.is_connected(_on_player_hit):
+		EventBus.player_hit.disconnect(_on_player_hit)

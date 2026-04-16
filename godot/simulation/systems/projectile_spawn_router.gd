@@ -9,6 +9,10 @@ static func handle_fire(
 	var flags: int = input.get("action_flags", 0)
 	if (flags & MessageTypes.InputActionFlags.FIRE) == 0:
 		return
+	# Block firing during ghost state - ghosts can't attack, and client/server
+	# positions can diverge significantly during ghost making projectile sync unreliable.
+	if player.state == PlayerMovementState.GHOST:
+		return
 	if not projectile_system.can_fire(player.player_id):
 		return
 

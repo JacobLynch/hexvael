@@ -172,6 +172,24 @@ func _handle_binary_message(bytes: PackedByteArray):
 			}
 			EventBus.enemy_died.emit(event)
 			enemy_died_received.emit(event)
+		MessageTypes.Binary.ENEMY_HIT:
+			EventBus.enemy_hit.emit({
+				"entity_id": msg["entity_id"],
+				"target_entity_id": msg["entity_id"],
+				"position": msg["position"],
+				"damage": msg["damage"],
+				"remaining_health": msg["remaining_health"],
+				"max_health": msg["max_health"],
+			})
+		MessageTypes.Binary.PLAYER_HIT:
+			EventBus.player_hit.emit({
+				"entity_id": msg["entity_id"],
+				"target_entity_id": msg["entity_id"],
+				"position": msg["position"],
+				"damage": msg["damage"],
+				"remaining_health": msg["remaining_health"],
+				"max_health": msg["max_health"],
+			})
 		MessageTypes.Binary.PROJECTILE_SPAWNED:
 			_handle_projectile_spawned(bytes)
 		MessageTypes.Binary.PROJECTILE_DESPAWNED:
@@ -284,6 +302,9 @@ func _send_ack(tick: int):
 
 func set_local_player(player: PlayerEntity) -> void:
 	_local_player = player
+	# Client's local player should not predict respawn timing — let server drive it.
+	# Reconciliation handles the GHOST->WALKING transition when server says so.
+	_local_player.server_authoritative_respawn = true
 
 
 func _send_input():
@@ -355,10 +376,32 @@ func _reconcile_local_player(snap: Snapshot):
 	_local_player.position = server_pos
 	_local_player.velocity = server_data.get("velocity", Vector2.ZERO)
 	_local_player.aim_direction = server_data.get("aim_direction", Vector2.RIGHT)
-	_local_player.state = server_data.get("state", 0)
+	var old_state: int = _local_player.state
+	var new_state: int = server_data.get("state", 0)
+	_local_player.state = new_state
 	_local_player.dodge_time_remaining = server_data.get("dodge_time_remaining", 0.0)
 	_local_player.collision_count = server_data.get("collision_count", 0)
 	_local_player.last_collision_normal = server_data.get("last_collision_normal", Vector2.ZERO)
+
+	# Handle ghost state transitions - sync state but let WorldView emit events
+	# (WorldView uses state-diff tracking which is more reliable than comparing
+	# old_state vs new_state here, since prediction can desync them)
+	if new_state == PlayerMovementState.GHOST:
+		# Always sync ghost_timer from server during ghost state
+		_local_player.ghost_timer = server_data.get("ghost_timer", PlayerEntity.GHOST_DURATION)
+		if old_state != PlayerMovementState.GHOST:
+			# Entering ghost state - sync health and collision
+			_local_player.health.current = 0
+			var collision_shape = _local_player.get_node("CollisionShape2D")
+			if collision_shape:
+				collision_shape.set_deferred("disabled", true)
+	elif old_state == PlayerMovementState.GHOST and new_state != PlayerMovementState.GHOST:
+		# Exiting ghost state (respawning) - restore health and collision
+		_local_player.health.current = _local_player.health.max_health
+		_local_player.ghost_timer = 0.0
+		var collision_shape = _local_player.get_node("CollisionShape2D")
+		if collision_shape:
+			collision_shape.set_deferred("disabled", false)
 	# dodge_cooldown_remaining is not in the snapshot; if the server says we're
 	# past a dodge, cooldown is implicit in server state. Leave local cooldown.
 	# If currently dodging, derive dodge_direction from velocity so the next
