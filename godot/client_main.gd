@@ -55,6 +55,8 @@ func _ready():
 	_projectile_effects.set_net_client(_net_client)
 
 	_world_view.initialize(_net_client)
+	_projectile_effects.set_camera_rig(_world_view._camera_rig)
+	_world_view.register_effect_params(ProjectileType.Id.FROST_BOLT, frost_effect_params)
 	_connection_ui.connect_requested.connect(_on_connect_requested)
 	_net_client.connected.connect(_on_connected)
 	_net_client.disconnected.connect(_on_disconnected)
